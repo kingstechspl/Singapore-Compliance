@@ -13,7 +13,7 @@ frappe.ui.form.on("Official Receipt", {
 					company: frm.doc.company,
 				},
 				callback: function (r) {
-					console.log(r.message)
+					console.log(r.message);
 					// Get company logo first, then build HTML
 					get_html_with_logo(frm, r.message);
 				},
@@ -23,7 +23,7 @@ frappe.ui.form.on("Official Receipt", {
 });
 
 // Helper function to safely get values
-let safeGet = (value, defaultValue = '') => {
+let safeGet = (value, defaultValue = "") => {
 	return value !== undefined && value !== null ? value : defaultValue;
 };
 
@@ -32,23 +32,23 @@ let get_html_with_logo = function (frm, r) {
 	frappe.call({
 		method: "singapore_compliance.singapore_compliance.doctype.official_receipt.official_receipt.get_company_logo",
 		args: {
-			company: frm.doc.company
+			company: frm.doc.company,
 		},
 		callback: (logo_response) => {
 			let company_logo = logo_response.message || "/files/KGS-Logo.png";
 			let html = get_html(frm, r, company_logo);
 			console.log(html);
 			frappe.render_pdf(html, { orientation: "Portrait" });
-		}
+		},
 	});
 };
 
 let get_html = function (frm, r, company_logo) {
 	// Check if response has data
 	if (!r) {
-		return '<p>No data available</p>';
+		return "<p>No data available</p>";
 	}
-	
+
 	let html = `
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
 	<style>
@@ -134,10 +134,16 @@ let get_html = function (frm, r, company_logo) {
 	<tbody>
 		<tr>
 			<td>
-				<p class="address-sec">${safeGet(r.data && r.data[0] ? r.data[0].party : '')}</p>
-				<p class="address-sec">${safeGet(r.address ? r.address.address_line1 : '')}</p>
-				<p class="address-sec">${safeGet(r.address && r.address.address_line2 ? r.address.address_line2 : '')}</p>
-				<p class="address-sec">${safeGet(r.address ? r.address.city : '')}${r.address && r.address.city && r.address.country ? ', ' : ''}${safeGet(r.address ? r.address.country : '')}${r.address && r.address.pincode ? ', ' : ''}${safeGet(r.address ? r.address.pincode : '')}</p>
+				<p class="address-sec">${safeGet(r.data && r.data[0] ? r.data[0].party : "")}</p>
+				<p class="address-sec">${safeGet(r.address ? r.address.address_line1 : "")}</p>
+				<p class="address-sec">${safeGet(
+					r.address && r.address.address_line2 ? r.address.address_line2 : ""
+				)}</p>
+				<p class="address-sec">${safeGet(r.address ? r.address.city : "")}${
+		r.address && r.address.city && r.address.country ? ", " : ""
+	}${safeGet(r.address ? r.address.country : "")}${
+		r.address && r.address.pincode ? ", " : ""
+	}${safeGet(r.address ? r.address.pincode : "")}</p>
 			</td>
 			<td>
 				<p class="address-sec">Currency : ${safeGet(r.currency)}</p>
