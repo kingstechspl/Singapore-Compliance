@@ -116,10 +116,10 @@ def get_print_data(customer, from_date, to_date, company):
 
 	address = frappe.db.sql(
 		f"""
-	Select ad.name as title, ad.address_line1, ad.address_line2, ad.city, ad.country, ad.pincode, dl.link_name as party
-	From `tabAddress` as ad
-	Left join `tabDynamic Link` as  dl ON dl.parent = ad.name
-	Where ad.address_type = "Billing" and dl.link_name = '{customer}'
+		Select ad.name as title, ad.address_line1, ad.address_line2, ad.city, ad.country, ad.pincode, dl.link_name as party
+		From `tabAddress` as ad
+		Left join `tabDynamic Link` as  dl ON dl.parent = ad.name
+		Where ad.address_type = "Billing" and dl.link_name = '{customer}'
 	""",
 		as_dict=1,
 	)

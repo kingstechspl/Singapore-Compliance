@@ -13,15 +13,42 @@ frappe.ui.form.on("Official Receipt", {
 					company: frm.doc.company,
 				},
 				callback: function (r) {
-					let html = get_html(frm, r.message);
-					frappe.render_pdf(html, { orientation: "Portrait" });
+					console.log(r.message)
+					// Get company logo first, then build HTML
+					get_html_with_logo(frm, r.message);
 				},
 			});
 		});
 	},
 });
 
-let get_html = function (frm, r) {
+// Helper function to safely get values
+let safeGet = (value, defaultValue = '') => {
+	return value !== undefined && value !== null ? value : defaultValue;
+};
+
+let get_html_with_logo = function (frm, r) {
+	// First get company logo
+	frappe.call({
+		method: "singapore_compliance.singapore_compliance.doctype.official_receipt.official_receipt.get_company_logo",
+		args: {
+			company: frm.doc.company
+		},
+		callback: (logo_response) => {
+			let company_logo = logo_response.message || "/files/KGS-Logo.png";
+			let html = get_html(frm, r, company_logo);
+			console.log(html);
+			frappe.render_pdf(html, { orientation: "Portrait" });
+		}
+	});
+};
+
+let get_html = function (frm, r, company_logo) {
+	// Check if response has data
+	if (!r) {
+		return '<p>No data available</p>';
+	}
+	
 	let html = `
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
 	<style>
@@ -80,7 +107,7 @@ let get_html = function (frm, r) {
 <tbody>
     <tr>
         <td width="10%">
-            <img height="60" src="/files/KGS-Logo.png" width="60">
+            <img height="60" src="${company_logo}" width="60">
         </td>
         <td width="21%">
             <p class="lhead"><b class="blhead">KGS Pte Ltd</b>
@@ -107,18 +134,18 @@ let get_html = function (frm, r) {
 	<tbody>
 		<tr>
 			<td>
-				<p class="address-sec">${r.address.party}</p>
-				<p class="address-sec">${r.address.address_line1}</p>
-				<p class="address-sec">${r.address.address_line2 ? r.address.address_line2 : ""}</p>
-				<p class="address-sec">${r.address.city}, ${r.address.country}, ${r.address.pincode}, </p>
+				<p class="address-sec">${safeGet(r.data && r.data[0] ? r.data[0].party : '')}</p>
+				<p class="address-sec">${safeGet(r.address ? r.address.address_line1 : '')}</p>
+				<p class="address-sec">${safeGet(r.address && r.address.address_line2 ? r.address.address_line2 : '')}</p>
+				<p class="address-sec">${safeGet(r.address ? r.address.city : '')}${r.address && r.address.city && r.address.country ? ', ' : ''}${safeGet(r.address ? r.address.country : '')}${r.address && r.address.pincode ? ', ' : ''}${safeGet(r.address ? r.address.pincode : '')}</p>
 			</td>
 			<td>
-				<p class="address-sec">Currency : ${r.currency}</p>
-				<p class="address-sec">Payment Terms : ${r.payment_terms}</p>
+				<p class="address-sec">Currency : ${safeGet(r.currency)}</p>
+				<p class="address-sec">Payment Terms : ${safeGet(r.payment_terms)}</p>
 				<p class="address-sec">Payment Amount : </p>
 			</td>
 			<td class="left_dotted">
-				<p class="address-sec" style="padding-left:10px;">Voucher No : ${frm.doc.name}</p>
+				<p class="address-sec" style="padding-left:10px;">Voucher No : ${safeGet(frm.doc.name)}</p>
 				<p class="address-sec" style="padding-left:10px;">Cheque No : </p>
 				<p class="address-sec" style="padding-left:10px;">Date : </p>
 			</td>
@@ -138,37 +165,37 @@ let get_html = function (frm, r) {
 			<td class="onbottom">
 	  			<p>Reference</p>
 			</td>
-			<td class="onbottom">
+			<td class="onbottom" align="right">
 	  			<p>Invoice Total</p>
 			</td class="onbottom">
-			<td class="onbottom">
+			<td class="onbottom" align="right">
 	  			<p>Amount</p>
 			</td>
-			<td class="onbottom">
+			<td class="onbottom" align="right">
 	  			<p>Balance</p>
 			</td>
 		<tr>
 		`;
-	if (r.data) {
+	if (r.data && Array.isArray(r.data)) {
 		r.data.forEach((e) => {
 			html += `<tr>
 						<td>
-							<p>${e.posting_date}</p>
+							<p>${safeGet(e.posting_date)}</p>
 						</td>
 						<td>
-							<p>${e.name}</p>
+							<p>${safeGet(e.name)}</p>
 						</td>
 						<td>
-							<p>${e.reference_name || ""}</p>
+							<p>${safeGet(e.reference_name)}</p>
 						</td>
 						<td align="right">
-							<p>${e.total_amount || 0}</p>
+							<p>${safeGet(e.total_amount, 0)}</p>
 						</td>
 						<td align="right">
-							<p>${e.allocated_amount || 0}</p>
+							<p>${safeGet(e.allocated_amount, 0)}</p>
 						</td>
 						<td align="right">
-							<p>${e.outstanding_amount || 0}</p>
+							<p>${safeGet(e.outstanding_amount, 0)}</p>
 						</td>
 					</tr>`;
 		});
@@ -193,7 +220,7 @@ let get_html = function (frm, r) {
 				<tr style ="line-height:50mm;">
 					<td width="65%"></td>
 					<td>
-						<p align="left">Recieved by:</p>
+						<p align="left">Received by:</p>
 					</td>
 				</tr>
 				<tr>
