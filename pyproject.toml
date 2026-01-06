@@ -4,7 +4,7 @@ authors = [
     { name = "Kingstech", email = "jake@kingstech.com"}
 ]
 description = "Singapore Compliance"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
