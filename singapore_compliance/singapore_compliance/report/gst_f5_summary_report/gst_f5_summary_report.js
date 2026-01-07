@@ -17,14 +17,14 @@ frappe.query_reports["GST F5 Summary Report"] = {
 			label: __("From Date"),
 			fieldtype: "Date",
 			width: 100,
-			default: frappe.datetime.add_months(frappe.datetime.get_today(), -1),
+			default: frappe.datetime.month_start(),
 		},
 		{
 			fieldname: "to_date",
 			label: __("To Date"),
 			fieldtype: "Date",
 			width: 100,
-			default: frappe.datetime.get_today(),
+			default: frappe.datetime.month_end(),
 		},
 	],
 };
