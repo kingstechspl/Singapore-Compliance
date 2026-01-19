@@ -1,5 +1,6 @@
-import frappe
+import frappe, time
 from frappe import _
+from frappe.utils.background_jobs import enqueue
 
 
 def create_charts_of_accounts(company):
@@ -173,6 +174,36 @@ def create_charts_of_accounts(company):
 				],
 			}
 		).insert(ignore_permissions=True)
+	
+	charts_of_account = frappe.db.get_value("Company", company, "chart_of_accounts")
+	params = frappe._dict({
+		"company_name" : company,
+		"chart_of_accounts" : charts_of_account
+	})
+
+	if charts_of_account == "Singapore - Chart of Accounts":
+		if income_account := frappe.db.exists(
+			"Account", 
+			{"company": company, "account_name": "Sales Income"},
+		):
+			frappe.db.set_value("Company", company, "default_income_account", income_account)
+		else:
+			set_income_account(params)
+
+	if params.get("chart_of_accounts") == "Standard" or params.get("chart_of_accounts") == "Standard with Numbers":
+		if income_account := frappe.db.exists(
+			"Account", 
+			{"company": company, "account_name": "Sales"},
+		):
+			frappe.db.set_value("Company", company, "default_income_account", income_account)
+			return
+		else:
+			time.sleep(1)
+			set_income_account(params)
+			return
+	
+	if params.get("chart_of_accounts") == "Singapore - F&B Chart of Accounts":
+		set_income_account(params)
 
 	frappe.db.commit()
 
@@ -198,9 +229,105 @@ def get_setup_wizard_stages(params=None):
 					"fn": update_gst_settings,
 					"args": params,
 				},
+				{
+					"fn" : set_income_account,
+					"args": params
+				}
 			],
 		}
 	]
+
+def set_income_account(params, retry=0):
+	enqueue(
+		setup_income_account,
+		params=params,
+		retry=retry,
+		queue="short"
+	)
+
+
+def setup_income_account(params, retry=0):
+	company = params.get("company_name")
+	max_retry = 20
+
+	if retry > max_retry:
+		frappe.log_error("Income account setup failed after retries", company)
+		return
+
+	# ---- Check company exists ---- #
+	if not frappe.db.exists("Company", company):
+		time.sleep(1)
+		set_income_account(params, retry + 1)
+		return
+
+	# --- check if chart of accounts are Singapore - Chart of Accounts --- #
+	if params.get("chart_of_accounts") == "Singapore - Chart of Accounts":
+		if income_account := frappe.db.exists(
+			"Account", 
+			{"company": company, "account_name": "Sales Income"},
+		):
+			frappe.db.set_value("Company", company, "default_income_account", income_account)
+			return
+		else:
+			time.sleep(1)
+			set_income_account(params, retry + 1)
+			return
+	
+	if params.get("chart_of_accounts") == "Standard" or params.get("chart_of_accounts") == "Standard with Numbers":
+		if income_account := frappe.db.exists(
+			"Account", 
+			{"company": company, "account_name": "Sales"},
+		):
+			frappe.db.set_value("Company", company, "default_income_account", income_account)
+			return
+		else:
+			time.sleep(1)
+			set_income_account(params, retry + 1)
+			return
+			
+
+	# ---- Check Direct Income exists for this company ----
+	parent = frappe.db.get_value(
+		"Account",
+		{"company": company, "account_name": "Direct Income"},
+		"name"
+	)
+
+	if not parent:
+		time.sleep(1)
+		set_income_account(params, retry + 1)
+		return
+
+	# ---- Check if Sales already created ----
+	existing_sales = frappe.db.exists("Account", {
+		"company": company,
+		"account_name": "Sales"
+	})
+
+	if existing_sales and params.get("chart_of_accounts") == "Singapore - F&B Chart of Accounts":
+		frappe.db.set_value("Company", company, "default_income_account", existing_sales)
+		return  
+
+	# ---- Create Sales safely ----
+	try:
+		if params.get("chart_of_accounts") == "Singapore - F&B Chart of Accounts":
+			income_account = frappe.get_doc({
+				"doctype": "Account",
+				"account_name": "Sales",
+				"company": company,
+				"root_type": "Income",
+				"report_type": "Profit and Loss",
+				"account_currency": frappe.get_cached_value("Company", company, "default_currency"),
+				"parent_account": parent,
+			})
+			income_account.insert(ignore_if_duplicate=True)
+
+	except Exception:
+		frappe.log_error("Not Found Income Account", "Default Income Account")
+	
+
+	# ---- Set default income ----
+	frappe.db.set_value("Company", company, "default_income_account", income_account.name)
 
 
 def run_sg_tax_setup(params):
