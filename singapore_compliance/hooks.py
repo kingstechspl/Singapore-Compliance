@@ -11,15 +11,15 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "singapore_compliance",
-# 		"logo": "/assets/singapore_compliance/logo.png",
-# 		"title": "Singapore Compliance",
-# 		"route": "/singapore_compliance",
-# 		"has_permission": "singapore_compliance.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "singapore_compliance",
+		"logo": "/assets/singapore_compliance/logo.png",
+		"title": "Singapore Compliance",
+		"route": "/desk/gst-singapore",
+		"has_permission": "singapore_compliance.api.check_app_permission"
+	}
+]
 setup_wizard_stages = "singapore_compliance.events.setup.get_setup_wizard_stages"
 # Includes in <head>
 # ------------------

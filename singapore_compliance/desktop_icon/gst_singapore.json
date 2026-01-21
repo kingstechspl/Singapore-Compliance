@@ -1,0 +1,21 @@
+{
+ "app": "singapore_compliance",
+ "creation": "2026-01-21 16:35:33.789269",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "money-coins-1",
+ "icon_type": "App",
+ "idx": 0,
+ "label": "GST Singapore",
+ "link_to": "GST Singapore",
+ "link_type": "Workspace Sidebar",
+ "logo_url": "/assets/singapore_compliance/logo.png",
+ "modified": "2026-01-21 19:28:14.220599",
+ "modified_by": "Administrator",
+ "name": "GST Singapore",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [],
+ "standard": 1
+}

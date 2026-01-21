@@ -1,4 +1,5 @@
 {
+ "app": "singapore_compliance",
  "charts": [],
  "content": "[{\"id\":\"gcWpgws4mi\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">GST Singapore</span>\",\"col\":12}},{\"id\":\"HWZwRtbClR\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\" style=\\\"\\\">Settings</span>\",\"col\":12}},{\"id\":\"K0eV1i3EoX\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Singapore GST Settings\",\"col\":3}},{\"id\":\"5oVnOxMENW\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports</b></span>\",\"col\":12}},{\"id\":\"mvxGyPkh6T\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"GST Detail Report\",\"col\":3}},{\"id\":\"X2WydUZHz7\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"GST F5 Summary Report\",\"col\":3}},{\"id\":\"m0YRI8ML0W\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Official Receipt\",\"col\":3}},{\"id\":\"IvMJufBqvs\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"eR6Doxd9O8\",\"type\":\"card\",\"data\":{\"card_name\":\"Documents\",\"col\":4}}]",
  "creation": "2025-12-15 18:55:51.898232",
@@ -33,7 +34,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-01-07 18:01:54.937440",
+ "modified": "2026-01-21 19:19:50.436909",
  "modified_by": "Administrator",
  "module": "Singapore Compliance",
  "name": "GST Singapore",
@@ -77,5 +78,6 @@
    "type": "Report"
   }
  ],
- "title": "GST Singapore"
+ "title": "GST Singapore",
+ "type": "Workspace"
 }

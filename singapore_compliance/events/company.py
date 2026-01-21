@@ -1,6 +1,12 @@
 import frappe
+from singapore_compliance.events.setup import (
+	create_charts_of_accounts,
+	update_gst_settings,
+)
 
-from singapore_compliance.events.setup import create_charts_of_accounts, update_gst_settings
+
+MAX_RETRY = 10
+RETRY_INTERVAL = 10  # seconds
 
 
 def setup_charts_of_account_for_new_company(doc, method=None):
@@ -10,15 +16,61 @@ def setup_charts_of_account_for_new_company(doc, method=None):
 	- A new company is created (not the first one)
 	"""
 
-	# 2️⃣ Ensure default company already exists (extra safety)
+	# Ensure default company exists
 	default_company = frappe.db.get_single_value("Global Defaults", "default_company")
 	if not default_company:
 		return
 
+	if _tax_parents_exist(doc.name):
+		_run_sg_setup(doc)
+	else:
+		frappe.enqueue(
+			create_chart_of_accounts_in_rq,
+			doc_name=doc.name,
+			retry=0,
+			queue="short",
+		)
+
+
+def create_chart_of_accounts_in_rq(doc_name, retry=0):
+	"""
+	RQ job with retry limit to avoid infinite loop
+	"""
+
+	if retry >= MAX_RETRY:
+		frappe.log_error(
+			title="Singapore COA Setup Failed",
+			message=(
+				f"Tax parent accounts not found for company {doc_name} "
+				f"after {MAX_RETRY} retries"
+			),
+		)
+		return
+
+	if _tax_parents_exist(doc_name):
+		doc = frappe.get_doc("Company", doc_name)
+		_run_sg_setup(doc)
+		return
+
+	# Re-enqueue with delay instead of blocking sleep
+	frappe.enqueue(
+		create_chart_of_accounts_in_rq,
+		doc_name=doc_name,
+		retry=retry + 1,
+		queue="short",
+		enqueue_in=RETRY_INTERVAL,
+	)
+
+
+# ------------------------
+# Helper methods
+# ------------------------
+
+def _tax_parents_exist(company):
 	tax_assets_parent = frappe.db.get_value(
 		"Account",
 		{
-			"company": doc.name,
+			"company": company,
 			"account_name": "Tax Assets",
 			"is_group": 1,
 		},
@@ -28,52 +80,20 @@ def setup_charts_of_account_for_new_company(doc, method=None):
 	duties_taxes_parent = frappe.db.get_value(
 		"Account",
 		{
-			"company": doc.name,
+			"company": company,
 			"account_name": "Duties and Taxes",
 			"is_group": 1,
 		},
 		"name",
 	)
 
-	if tax_assets_parent and duties_taxes_parent:
-		# ✅ Safe to run for newly created company
-		create_charts_of_accounts(doc.name)
-		doc.update({"company_name": doc.name})
-		params = doc
-		update_gst_settings(params)
-	else:
-		frappe.enqueue(create_chart_of_accounts_in_rq, doc=doc, queue="short")
+	return bool(tax_assets_parent and duties_taxes_parent)
 
 
-def create_chart_of_accounts_in_rq(doc):
-	import time
-
-	time.sleep(3)
-
-	tax_assets_parent = frappe.db.get_value(
-		"Account",
-		{
-			"company": doc.name,
-			"account_name": "Tax Assets",
-			"is_group": 1,
-		},
-		"name",
-	)
-
-	duties_taxes_parent = frappe.db.get_value(
-		"Account",
-		{
-			"company": doc.name,
-			"account_name": "Duties and Taxes",
-			"is_group": 1,
-		},
-		"name",
-	)
-
-	if tax_assets_parent and duties_taxes_parent:
-		create_charts_of_accounts(doc.name)
-		doc.update({"company_name": doc.name})
-		params = doc
-		update_gst_settings(params)
-	else:
-		frappe.enqueue(create_chart_of_accounts_in_rq, doc=doc, queue="short")
+def _run_sg_setup(doc):
+	"""
+	Run Singapore COA + GST setup safely (idempotent)
+	"""
+	create_charts_of_accounts(doc.name)
+	doc.update({"company_name": doc.name})
+	update_gst_settings(doc)
