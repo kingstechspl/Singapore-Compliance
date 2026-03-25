@@ -11,7 +11,7 @@ from frappe.utils import getdate, money_in_words
 
 
 @frappe.whitelist()
-def get_statements_of_account(name):
+def get_statements_of_account(name: str) -> dict:
 	name = frappe.form_dict.name
 	psoa_doc = frappe.get_doc("Process Statement Of Accounts", name)
 	out_data = {}
@@ -70,7 +70,7 @@ def get_statements_of_account(name):
 						re["total"] = sales_invoice.get("total") if sales_invoice.get("total") else 0
 			cust_dict["data"] = res
 
-		cad_query = f"""
+		cad_query = """
 			SELECT
 				ad.name,
 				ad.address_line1,
@@ -84,26 +84,28 @@ def get_statements_of_account(name):
 				cus.customer_name as customer_name,
 				cus.payment_terms
 			FROM
-				tabAddress AS ad LEFT JOIN
-				`tabDynamic Link` AS dl ON dl.parent=ad.name LEFT JOIN
-				tabCustomer AS cus ON dl.link_name=cus.name
+				tabAddress AS ad 
+			LEFT JOIN `tabDynamic Link` AS dl ON dl.parent=ad.name 
+			LEFT JOIN tabCustomer AS cus ON dl.link_name=cus.name
 			WHERE
-				dl.link_doctype="Customer" AND dl.link_name={json.dumps(cust.get("customer"))}"""
-		cad_data = frappe.db.sql(f"{cad_query}", as_dict=True)
+				dl.link_doctype="Customer" AND dl.link_name=%s
+		"""
+		cad_data = frappe.db.sql(cad_query, (cust.get("customer"),), as_dict=True)
 		if cad_data and cad_data[0]:
 			cust_dict["cad_data"] = cad_data[0]
-		cco_query = f"""
+		cco_query = """
 			SELECT
 				co.first_name,
 				co.middle_name,
 				co.last_name
 			FROM
-				tabContact AS co LEFT JOIN
-				`tabDynamic Link` AS dl ON dl.parent=co.name
+				tabContact AS co 
+			LEFT JOIN `tabDynamic Link` AS dl ON dl.parent=co.name
 			WHERE
-				dl.link_doctype="Customer" AND dl.link_name={json.dumps(cust.get("customer"))}
+				dl.link_doctype="Customer" 
+				AND dl.link_name=%s
 				AND co.is_primary_contact=1"""
-		cco_data = frappe.db.sql(f"{cco_query}", as_dict=True)
+		cco_data = frappe.db.sql(cco_query, (cust.get("customer"),), as_dict=True)
 		if cco_data and cco_data[0]:
 			cust_dict["cco_data"] = cco_data[0]
 		if psoa_doc.include_ageing:
@@ -128,7 +130,7 @@ def get_statements_of_account(name):
 	out_data["currency"] = psoa_doc.currency
 	out_data["to_date"] = frappe.utils.formatdate(psoa_doc.to_date, "dd MMM YYYY")
 	out_data["posting_date"] = frappe.utils.formatdate(getdate(), "dd MMM YYYY")
-	cod_query = f"""
+	cod_query = """
 		SELECT
 			ad.name,
 			ad.address_line1,
@@ -140,11 +142,13 @@ def get_statements_of_account(name):
 			ad.fax,
 			ad.country
 		FROM
-			tabAddress AS ad LEFT JOIN
-			`tabDynamic Link` AS dl ON dl.parent=ad.name
+			tabAddress AS ad 
+		LEFT JOIN `tabDynamic Link` AS dl ON dl.parent=ad.name
 		WHERE
-			dl.link_doctype="Company" AND dl.link_name={json.dumps(psoa_doc.get("company"))}"""
-	cod_data = frappe.db.sql(f"{cod_query}", as_dict=True)
+			dl.link_doctype="Company" 
+			AND dl.link_name=%s
+	"""
+	cod_data = frappe.db.sql(cod_query, (psoa_doc.get("company"),), as_dict=True)
 	if cod_data and cod_data[0]:
 		out_data["cod_data"] = cod_data[0]
 	out_data["tax_id"] = frappe.db.get_value("Company", psoa_doc.company, "tax_id")

@@ -63,71 +63,86 @@ def execute(filters=None):
 
 
 def get_data(filters):
-	condition = ""
-	if filters.get("company"):
-		condition += f" and pe.company = '{filters.get('company')}'"
-	if filters.get("payment_entry"):
-		condition += f" and pe.name = '{filters.get('payment_entry')}'"
-	if filters.get("party_type"):
-		condition += f" and pe.party_type = '{filters.get('party_type')}'"
-	if filters.get("party"):
-		condition += " and pe.party in {} ".format(
-			"(" + ", ".join([f'"{l}"' for l in filters.get("party")]) + ")"
-		)
+    conditions = []
+    params = {}
 
-	data = frappe.db.sql(
-		f"""
-			Select pe.name, pe.party_type, pe.party, ref.reference_doctype, ref.reference_name, ref.total_amount, ref.outstanding_amount, ref.allocated_amount
-			From `tabPayment Entry` as pe
-			Left join `tabPayment Entry Reference` as ref ON pe.name = ref.parent
-			where pe.docstatus = 1  {condition}
-	""",
-		as_dict=1,
-	)
+    if filters.get("company"):
+        conditions.append("pe.company = %(company)s")
+        params["company"] = filters.get("company")
 
-	return data
+    if filters.get("payment_entry"):
+        conditions.append("pe.name = %(payment_entry)s")
+        params["payment_entry"] = filters.get("payment_entry")
+
+    if filters.get("party_type"):
+        conditions.append("pe.party_type = %(party_type)s")
+        params["party_type"] = filters.get("party_type")
+
+    if filters.get("party"):
+        conditions.append("pe.party IN %(party_list)s")
+        params["party_list"] = tuple(filters.get("party")) 
+
+    where_clause = ""
+    if conditions:
+        where_clause = " AND " + " AND ".join(conditions)
+
+    query = (
+        "SELECT pe.name, pe.party_type, pe.party, "
+        "ref.reference_doctype, ref.reference_name, "
+        "ref.total_amount, ref.outstanding_amount, ref.allocated_amount "
+        "FROM `tabPayment Entry` AS pe "
+        "LEFT JOIN `tabPayment Entry Reference` AS ref ON pe.name = ref.parent "
+        "WHERE pe.docstatus = 1" + where_clause
+    )
+
+    data = frappe.db.sql(query, params, as_dict=1)
+    return data
 
 
 @frappe.whitelist()
-def get_print_data(customer, from_date, to_date, company):
-	result = {}
+def get_print_data(customer: str, from_date: str, to_date: str, company: str) -> dict:
+    result = {}
 
-	condition = ""
-	condition += f" and pe.company = '{company}'"
-	condition += f" and pe.party = '{customer}'"
-	condition += f" and pe.posting_date >= '{from_date}'"
-	condition += f" and pe.posting_date <= '{to_date}'"
+    query = (
+        "SELECT pe.name, pe.party_type, pe.party, ref.reference_doctype, "
+        "ref.reference_name, ref.total_amount, ref.outstanding_amount, "
+        "ref.allocated_amount, pe.posting_date, pe.paid_from_account_currency "
+        "FROM `tabPayment Entry` AS pe "
+        "LEFT JOIN `tabPayment Entry Reference` AS ref ON pe.name = ref.parent "
+        "WHERE pe.docstatus = 1 "
+        "AND pe.company = %(company)s "
+        "AND pe.party = %(customer)s "
+        "AND pe.posting_date >= %(from_date)s "
+        "AND pe.posting_date <= %(to_date)s"
+    )
 
-	data = frappe.db.sql(
-		f"""
-			Select pe.name, pe.party_type, pe.party, ref.reference_doctype,
-			ref.reference_name, ref.total_amount, ref.outstanding_amount,
-			ref.allocated_amount, pe.posting_date,
-			pe.paid_from_account_currency
-			From `tabPayment Entry` as pe
-			Left join `tabPayment Entry Reference` as ref ON pe.name = ref.parent
-			where pe.docstatus = 1  {condition}
-	""",
-		as_dict=1,
-	)
+    params = {
+        "company": company,
+        "customer": customer,
+        "from_date": from_date,
+        "to_date": to_date,
+    }
 
-	for row in data:
-		row.update({"posting_date": formatdate(row.posting_date, "dd MMM YYYY")})
+    data = frappe.db.sql(query, params, as_dict=1)
 
-	address = frappe.db.sql(
-		f"""
-		Select ad.name as title, ad.address_line1, ad.address_line2, ad.city, ad.country, ad.pincode, dl.link_name as party
-		From `tabAddress` as ad
-		Left join `tabDynamic Link` as  dl ON dl.parent = ad.name
-		Where ad.address_type = "Billing" and dl.link_name = '{customer}'
-	""",
-		as_dict=1,
-	)
-	if not data:
-		frappe.throw("Transaction are not available")
-	result["data"] = data
-	result["address"] = address[0]
-	result["currency"] = data[0].paid_from_account_currency
-	result["payment_terms"] = "C.O.D"
+    for row in data:
+        row["posting_date"] = formatdate(row["posting_date"], "dd MMM YYYY")
 
-	return result
+    address_query = (
+        "SELECT ad.name AS title, ad.address_line1, ad.address_line2, ad.city, "
+        "ad.country, ad.pincode, dl.link_name AS party "
+        "FROM `tabAddress` AS ad "
+        "LEFT JOIN `tabDynamic Link` AS dl ON dl.parent = ad.name "
+        "WHERE ad.address_type = 'Billing' AND dl.link_name = %(customer)s"
+    )
+    address = frappe.db.sql(address_query, {"customer": customer}, as_dict=1)
+
+    if not data:
+        frappe.throw(_("Transactions are not available"))
+
+    result["data"] = data
+    result["address"] = address[0] if address else {}
+    result["currency"] = data[0]["paid_from_account_currency"] if data else None
+    result["payment_terms"] = "C.O.D"
+
+    return result
