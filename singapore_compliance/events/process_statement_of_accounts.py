@@ -126,7 +126,7 @@ def get_statements_of_account(name: str) -> dict:
 			if ageing:
 				ageing[0]["ageing_based_on"] = psoa_doc.ageing_based_on
 				cust_dict["ageing"] = ageing[0]
-			out_list.append(cust_dict)
+		out_list.append(cust_dict)
 	out_data["cust"] = out_list
 	out_data["currency"] = psoa_doc.currency
 	out_data["to_date"] = frappe.utils.formatdate(psoa_doc.to_date, "dd MMM YYYY")
@@ -165,5 +165,5 @@ def get_statements_of_account(name: str) -> dict:
 			- out_data["cust"][0]["ageing"]["range4"]
 			- out_data["cust"][0]["ageing"]["range5"]
 		)
-	frappe.log_error(title="Output of PL", message=out_data)
+
 	return out_data
