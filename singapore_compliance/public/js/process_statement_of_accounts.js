@@ -7,7 +7,9 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 					name: frm.doc.name,
 				},
 				callback: function (r) {
+					console.log(r.message)
 					let p_html = set_html(frm, r.message);
+					console.log(p_html)
 					frappe.render_pdf(p_html, { orientation: "Portrait" });
 				},
 			});
