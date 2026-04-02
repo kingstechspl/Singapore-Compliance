@@ -9,46 +9,7 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 				callback: function (r) {
 					console.log(r.message)
 					let p_html = set_html(frm, r.message);
-					console.log(p_html)
-
-					var formData = new FormData();
-					formData.append("html", p_html);
-					formData.append("orientation", "Portrait");
-					formData.append("blob", new Blob([], { type: "text/xml" }));
-
-					var xhr = new XMLHttpRequest();
-					xhr.open("POST", "/api/method/singapore_compliance.events.process_statement_of_accounts.soa_to_pdf");
-					xhr.setRequestHeader("X-Frappe-CSRF-Token", frappe.csrf_token);
-					xhr.responseType = "arraybuffer";
-
-					xhr.onload = function () {
-						if (this.status === 200) {
-							var blob = new Blob([this.response], { type: "application/pdf" });
-							var objectUrl = URL.createObjectURL(blob);
-							let a = document.createElement("a");
-							document.body.appendChild(a);
-							a.style = "display: none";
-							a.href = objectUrl;
-							a.download = frm.doc.name + ".pdf";
-							a.click();
-							window.URL.revokeObjectURL(objectUrl);
-						} else {
-							var errorText = new TextDecoder().decode(this.response);
-							frappe.msgprint({
-								title: __("PDF Generation Failed"),
-								message: __("Server error {0}: {1}", [this.status, errorText]),
-								indicator: "red",
-							});
-						}
-					};
-					xhr.onerror = function () {
-						frappe.msgprint({
-							title: __("PDF Generation Failed"),
-							message: __("Network error while generating PDF."),
-							indicator: "red",
-						});
-					};
-					xhr.send(formData);
+					frappe.render_pdf(p_html, { orientation: "Portrait" });
 				},
 			});
 		});
