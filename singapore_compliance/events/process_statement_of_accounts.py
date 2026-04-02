@@ -1,6 +1,7 @@
 import json
 
 import frappe
+from weasyprint import HTML as WeasyprintHTML
 from erpnext import get_company_currency
 from erpnext.accounts.party import get_party_account_currency
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
@@ -8,6 +9,17 @@ from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_sum
 )
 from erpnext.accounts.report.general_ledger.general_ledger import execute as get_soa
 from frappe.utils import getdate, money_in_words
+
+
+@frappe.whitelist(allow_guest=False)
+def soa_to_pdf(html: str, orientation: str = "Portrait"):
+	pdf_bytes = WeasyprintHTML(string=html).write_pdf(
+		presentational_hints=True,
+		optimize_images=True,
+	)
+	frappe.local.response.filename = "statement_of_account.pdf"
+	frappe.local.response.filecontent = pdf_bytes
+	frappe.local.response.type = "pdf"
 
 
 @frappe.whitelist()

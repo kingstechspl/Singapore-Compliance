@@ -17,7 +17,7 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 					formData.append("blob", new Blob([], { type: "text/xml" }));
 
 					var xhr = new XMLHttpRequest();
-					xhr.open("POST", "/api/method/frappe.utils.print_format.report_to_pdf");
+					xhr.open("POST", "/api/method/singapore_compliance.events.process_statement_of_accounts.soa_to_pdf");
 					xhr.setRequestHeader("X-Frappe-CSRF-Token", frappe.csrf_token);
 					xhr.responseType = "arraybuffer";
 
