@@ -19,7 +19,6 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 
 var set_html = function (frm, r) {
 	let style = `
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
 	<style>
 .page-break    { display: block; page-break-before: always; }
 
@@ -30,7 +29,7 @@ var set_html = function (frm, r) {
 	vertical-align: top !important;
 	}
 	*{
-		font-family: 'IBM Plex Sans', sans-serif !important;
+		font-family: Arial, sans-serif !important;
 	}
 	.print-format {
 		margin-left: 4mm;
