@@ -34,7 +34,6 @@ def get_statements_of_account(name: str) -> dict:
 				"party_type": "Customer",
 				"party": [cust.customer],
 				"presentation_currency": presentation_currency,
-				"group_by": psoa_doc.group_by,
 				"currency": psoa_doc.currency,
 				"cost_center": [cc.cost_center_name for cc in psoa_doc.cost_center],
 				"project": [p.project_name for p in psoa_doc.project],
