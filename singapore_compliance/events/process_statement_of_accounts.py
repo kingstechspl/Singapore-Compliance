@@ -165,4 +165,5 @@ def get_statements_of_account(name: str) -> dict:
 			- out_data["cust"][0]["ageing"]["range4"]
 			- out_data["cust"][0]["ageing"]["range5"]
 		)
+	frappe.log_error(title="Output of PL", message=out_data)
 	return out_data

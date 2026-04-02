@@ -8,26 +8,7 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 				},
 				callback: function (r) {
 					let p_html = set_html(frm, r.message);
-					var xhr = new XMLHttpRequest();
-					xhr.open("POST", "/api/method/frappe.utils.print_format.report_to_pdf");
-					xhr.setRequestHeader("X-Frappe-CSRF-Token", frappe.csrf_token);
-					xhr.setRequestHeader("Content-Type", "application/json");
-					xhr.responseType = "arraybuffer";
-					xhr.onload = function (success) {
-						if (this.status === 200) {
-							var pdf_blob = new Blob([success.currentTarget.response], { type: "application/pdf" });
-							var objectUrl = URL.createObjectURL(pdf_blob);
-							var hidden_a_tag = document.createElement("a");
-							document.body.appendChild(hidden_a_tag);
-							hidden_a_tag.style = "display: none";
-							hidden_a_tag.href = objectUrl;
-							hidden_a_tag.download = frm.doc.name + ".pdf";
-							hidden_a_tag.click();
-							window.URL.revokeObjectURL(objectUrl);
-							document.body.removeChild(hidden_a_tag);
-						}
-					};
-					xhr.send(JSON.stringify({ html: p_html, orientation: "Portrait" }));
+					frappe.render_pdf(p_html, { orientation: "Portrait" });
 				},
 			});
 		});
