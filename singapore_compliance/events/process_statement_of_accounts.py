@@ -123,6 +123,7 @@ def get_statements_of_account(name: str) -> dict:
 				}
 			)
 			col1, ageing = get_ageing(ageing_filters)
+			frappe.log_error(title="ageing", message=ageing)
 			if ageing:
 				ageing[0]["ageing_based_on"] = psoa_doc.ageing_based_on
 				cust_dict["ageing"] = ageing[0]
