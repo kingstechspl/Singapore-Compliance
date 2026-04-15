@@ -193,14 +193,14 @@ def get_data(filters=None):
 		]
 		box_2_total_line = [
 			{
-				"transaction_type": "Box 2 Total value of standard-rated supplies (excluding GST)",
+				"transaction_type": "Box 2 Total value of zero-rated supplies (excluding GST)",
 				"heading": 1,
 				"amount": box_2_total,
 			}
 		]
 		box_3_total_line = [
 			{
-				"transaction_type": "Box 3 Total value of standard-rated supplies (excluding GST)",
+				"transaction_type": "Box 3 Total value of exempt supplies (excluding GST)",
 				"heading": 1,
 				"amount": abs(box_3_total + total_jv + total_py),
 			}
