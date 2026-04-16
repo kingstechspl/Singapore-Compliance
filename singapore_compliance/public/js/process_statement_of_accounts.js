@@ -168,8 +168,10 @@ var set_html = function (frm, r) {
 		`;
 			if (cu.data) {
 				var idx = 1;
+				var running_balance = 0;
 				$.each(cu.data, function (i, val) {
 					if (val.voucher_no) {
+						running_balance += (val.debit || 0) - (val.credit || 0);
 						html += `<tr>
 						<td style="width: 5%">${idx}</td>
 						<td style="width: 20%">${val.voucher_no ? val.voucher_no : ""}</td>
@@ -190,7 +192,7 @@ var set_html = function (frm, r) {
 								  ).replace("$", "")
 								: "-"
 						}</td>
-						<td style="width: 14%" align="right">${val.balance ? format_currency(val.balance) : "-"}</td>
+						<td style="width: 14%" align="right">${format_currency(running_balance)}</td>
 					</tr>`;
 						if (i % 30 == 0) {
 							console.log("h");
