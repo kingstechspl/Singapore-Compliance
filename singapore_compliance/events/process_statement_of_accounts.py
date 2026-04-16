@@ -137,8 +137,12 @@ def get_statements_of_account(name: str) -> dict:
 			col1, ageing = get_ageing(ageing_filters)
 			frappe.log_error(title="ageing", message=ageing)
 			if ageing:
-				ageing[0]["ageing_based_on"] = psoa_doc.ageing_based_on
-				cust_dict["ageing"] = ageing[0]
+				matching = next(
+					(a for a in ageing if a.get("party") == cust.customer), None
+				)
+				if matching:
+					matching["ageing_based_on"] = psoa_doc.ageing_based_on
+					cust_dict["ageing"] = matching
 			out_list.append(cust_dict)
 	out_data["cust"] = out_list
 	out_data["currency"] = psoa_doc.currency
@@ -166,17 +170,17 @@ def get_statements_of_account(name: str) -> dict:
 	if cod_data and cod_data[0]:
 		out_data["cod_data"] = cod_data[0]
 	out_data["tax_id"] = frappe.db.get_value("Company", psoa_doc.company, "tax_id")
-	if len(out_data["cust"]):
-		out_data["cust"][0]["ageing"]["outstanding_in_words"] = money_in_words(
-			abs(out_data["cust"][0]["ageing"]["outstanding"])
-		)
-		out_data["cust"][0]["ageing"]["current_due"] = (
-			out_data["cust"][0]["ageing"]["outstanding"]
-			- out_data["cust"][0]["ageing"]["range1"]
-			- out_data["cust"][0]["ageing"]["range2"]
-			- out_data["cust"][0]["ageing"]["range3"]
-			- out_data["cust"][0]["ageing"]["range4"]
-			- out_data["cust"][0]["ageing"]["range5"]
-		)
+	for cust_entry in out_data["cust"]:
+		if cust_entry.get("ageing"):
+			ageing = cust_entry["ageing"]
+			ageing["outstanding_in_words"] = money_in_words(abs(ageing.get("outstanding") or 0))
+			ageing["current_due"] = (
+				(ageing.get("outstanding") or 0)
+				- (ageing.get("range1") or 0)
+				- (ageing.get("range2") or 0)
+				- (ageing.get("range3") or 0)
+				- (ageing.get("range4") or 0)
+				- (ageing.get("range5") or 0)
+			)
 	frappe.log_error(title="output", message=out_data)
 	return out_data

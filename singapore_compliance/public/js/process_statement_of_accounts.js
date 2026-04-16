@@ -84,20 +84,20 @@ var set_html = function (frm, r) {
 	<tbody>
 	   <tr>
 		  <td width="10%">
-			<img height="60" src="/files/KGS-Logo.png" width="60">
+			<img height="60" src="/files/JLES_logo.png" width="60">
 		  </td>
-		  <td width="21%">
+		  <td width="22%">
 			 <p style="margin-bottom:0px !important; margin-top:0px;">
-			 	<b style="font-size:11px; margin-bottom:0px !important; margin-top:0px;">KGS Pte Ltd</b>
+			 	<b style="font-size:11px; margin-bottom:0px !important; margin-top:0px;">JLES SERVICES PTE. LTD.</b>
 			 </p>
-			 <p class="lhead">8 Tuas South Lane,</p>
-			 <p class="lhead">#01-71, Factory 4,</p>
-			 <p class="lhead">Singapore 637302</p>
+			 <p class="lhead">67 UBI CRESCENT,</p>
+			 <p class="lhead">#03-02,</p>
+			 <p class="lhead">Singapore 408560</p>
 		  </td>
-		  <td width="32%">
+		  <td width="28%">
 			 <br>
-			 <p class="lhead"><b class="blhead">Web:</b>kgs.com.sg</p>
-			 <p class="lhead"><b class="blhead">UEN/GST No:</b> 201607799N</p>
+			 <p class="lhead"><b class="blhead">Web:</b>-</p>
+			 <p class="lhead"><b class="blhead">UEN/GST No:</b> 202330432M</p>
 		  </td>
 		  <td align="centre">
 			 <b style="font-size: 20px; text-transform: uppercase;">
@@ -259,7 +259,11 @@ var set_html = function (frm, r) {
 				<td align="center">${cu.ageing && cu.ageing.range1 ? format_currency(cu.ageing.range1) : "-"}</td>
 				<td align="center">${cu.ageing && cu.ageing.range2 ? format_currency(cu.ageing.range2) : "-"}</td>
 				<td align="center">${cu.ageing && cu.ageing.range3 ? format_currency(cu.ageing.range3) : "-"}</td>
-				<td align="center">${cu.ageing && cu.ageing.range4 ? format_currency(cu.ageing.range4) : "-"}</td>
+				<td align="center">${
+						cu.ageing && (cu.ageing.range4 || cu.ageing.range5)
+							? format_currency((cu.ageing.range4 || 0) + (cu.ageing.range5 || 0))
+							: "-"
+					}</td>
 				<td align="center">${
 					cu.ageing && cu.ageing.outstanding
 						? format_currency(cu.ageing.outstanding)
