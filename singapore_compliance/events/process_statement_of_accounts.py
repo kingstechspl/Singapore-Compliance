@@ -8,7 +8,7 @@ from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_sum
 	execute as get_ageing,
 )
 from erpnext.accounts.report.general_ledger.general_ledger import execute as get_soa
-from frappe.utils import getdate, money_in_words
+from frappe.utils import getdate, money_in_words, today as frappe_today
 
 
 @frappe.whitelist(allow_guest=False)
@@ -184,3 +184,110 @@ def get_statements_of_account(name: str) -> dict:
 			)
 	frappe.log_error(title="output", message=out_data)
 	return out_data
+
+
+@frappe.whitelist()
+def get_customer_soa(customer: str) -> dict:
+	"""Generate SOA data for a single customer up to today, used by the Customer form button."""
+	from erpnext.accounts.utils import get_fiscal_year
+
+	company = frappe.defaults.get_global_default("company")
+	today_date = getdate(frappe_today())
+
+	try:
+		fy = get_fiscal_year(today_date, company=company)
+		from_date = fy[1]
+	except Exception:
+		from_date = frappe.utils.add_months(today_date, -12)
+
+	presentation_currency = (
+		get_party_account_currency("Customer", customer, company)
+		or get_company_currency(company)
+	)
+	tax_id = frappe.get_doc("Customer", customer).tax_id
+
+	filters = frappe._dict({
+		"from_date": str(from_date),
+		"to_date": str(today_date),
+		"company": company,
+		"finance_book": None,
+		"account": None,
+		"party_type": "Customer",
+		"party": [customer],
+		"presentation_currency": presentation_currency,
+		"currency": presentation_currency,
+		"cost_center": [],
+		"project": [],
+		"show_opening_entries": 0,
+		"include_default_book_entries": 0,
+		"tax_id": tax_id if tax_id else None,
+	})
+
+	col, res = get_soa(filters)
+
+	for x in [0, -2, -1]:
+		res[x]["account"] = res[x]["account"].replace("'", "")
+
+	if len(res) == 3:
+		return {"error": "No transactions found for this customer."}
+
+	for row in res:
+		if row.get("voucher_type") == "Sales Invoice":
+			si = frappe.db.get_value(
+				row["voucher_type"],
+				row["voucher_no"],
+				["due_date", "po_no", "total"],
+				as_dict=1,
+			)
+			if si:
+				row["due_date"] = si.get("due_date") or ""
+				row["po_no"] = si.get("po_no") or ""
+				row["total"] = si.get("total") or 0
+
+	cad_query = """
+		SELECT ad.name, ad.address_line1, ad.address_line2, ad.city,
+			ad.email_id, ad.phone, ad.pincode, ad.country,
+			cus.name as customer, cus.customer_name as customer_name, cus.payment_terms
+		FROM tabAddress AS ad
+		LEFT JOIN `tabDynamic Link` AS dl ON dl.parent = ad.name
+		LEFT JOIN tabCustomer AS cus ON dl.link_name = cus.name
+		WHERE dl.link_doctype = 'Customer' AND dl.link_name = %s
+	"""
+	cad_data = frappe.db.sql(cad_query, customer, as_dict=True)
+
+	ageing_filters = frappe._dict({
+		"company": company,
+		"report_date": str(today_date),
+		"ageing_based_on": "Due Date",
+		"range1": 30,
+		"range2": 60,
+		"range3": 90,
+		"range4": 120,
+		"customer": customer,
+	})
+	col1, ageing_rows = get_ageing(ageing_filters)
+	matching = next((a for a in ageing_rows if a.get("party") == customer), None)
+
+	if matching:
+		matching["ageing_based_on"] = "Due Date"
+		matching["outstanding_in_words"] = money_in_words(abs(matching.get("outstanding") or 0))
+		matching["current_due"] = (
+			(matching.get("outstanding") or 0)
+			- (matching.get("range1") or 0)
+			- (matching.get("range2") or 0)
+			- (matching.get("range3") or 0)
+			- (matching.get("range4") or 0)
+			- (matching.get("range5") or 0)
+		)
+
+	out = {
+		"cust": [{
+			"data": res,
+			"cad_data": cad_data[0] if cad_data else {"customer_name": customer},
+			"ageing": matching or {},
+		}],
+		"currency": presentation_currency,
+		"posting_date": frappe.utils.formatdate(frappe_today(), "dd MMM YYYY"),
+		"to_date": frappe.utils.formatdate(today_date, "dd MMM YYYY"),
+	}
+	return out

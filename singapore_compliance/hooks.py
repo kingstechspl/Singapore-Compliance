@@ -26,7 +26,7 @@ setup_wizard_stages = "singapore_compliance.events.setup.get_setup_wizard_stages
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/singapore_compliance/css/singapore_compliance.css"
-# app_include_js = "/assets/singapore_compliance/js/singapore_compliance.js"
+app_include_js = "/assets/singapore_compliance/js/soa_html_builder.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/singapore_compliance/css/singapore_compliance.css"
@@ -47,7 +47,10 @@ setup_wizard_stages = "singapore_compliance.events.setup.get_setup_wizard_stages
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
-doctype_js = {"Process Statement Of Accounts": "public/js/process_statement_of_accounts.js"}
+doctype_js = {
+	"Process Statement Of Accounts": "public/js/process_statement_of_accounts.js",
+	"Customer": "public/js/customer.js",
+}
 
 # Svg Icons
 # ------------------
