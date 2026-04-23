@@ -68,7 +68,7 @@ def get_statements_of_account(name: str) -> dict:
 					sales_invoice = frappe.db.get_value(
 						re.get("voucher_type"),
 						re.get("voucher_no"),
-						["due_date", "po_no", "total"],
+						["due_date", "po_no", "total", "custom_doc_title"],
 						as_dict=1,
 					)
 					if sales_invoice.get("due_date"):
@@ -77,6 +77,8 @@ def get_statements_of_account(name: str) -> dict:
 						)
 					if sales_invoice.get("po_no"):
 						re["po_no"] = sales_invoice.get("po_no") if sales_invoice.get("po_no") else ""
+					if sales_invoice.get("custom_doc_title"):
+						re["doc_title"] = sales_invoice.get("custom_doc_title") if sales_invoice.get("custom_doc_title") else ""
 					if sales_invoice.get("total"):
 						re["total"] = sales_invoice.get("total") if sales_invoice.get("total") else 0
 			cust_dict["data"] = res
