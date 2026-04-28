@@ -218,7 +218,7 @@ def get_data(filters=None):
 			AND p.docstatus = 1
 			AND pt.parenttype = 'Purchase Invoice'
 			AND pt.account_head = %(box_5)s
-		"'''
+		'''
 
 		params = {
 			"box_5": sgst_details[0].get("box_5")
