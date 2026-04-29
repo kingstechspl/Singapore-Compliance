@@ -227,9 +227,15 @@ def get_data(filters=None):
 					cp_dict["balance"] = box_3_balance_total
 					box_3.append(cp_dict)
 					box_3_total = box_3_total + cp_dict.get("amount")
+
+
 		# added jvtotal
-		box_3 = box_3 + jv_data if json.dumps(jv_data, default=str) else ""
-		box_3 = box_3 + py_data if json.dumps(py_data, default=str) else ""
+		if jv_data:
+			box_3.extend(jv_data)
+
+		if py_data:
+			box_3.extend(py_data)
+
 		box_3_total = box_3_total + total_jv + total_py
 		box_1_total_line = [
 			{
@@ -270,20 +276,31 @@ def get_data(filters=None):
 			pt.base_tax_amount as amount,
 			IF(pt.included_in_print_rate, p.net_total, p.total) as taxless_total
 		FROM
-			`tabPurchase Invoice` AS p,
+			`tabPurchase Invoice` AS p
 		JOIN `tabPurchase Taxes and Charges` AS pt ON pt.parent = p.name
 		WHERE
 			p.docstatus = 1
-			AND pt.parenttype = "Purchase Invoice"
-			AND pt.account_head IN (%(box_5)s, %(box_5_1)s, %(box_5_2)s, %(box_5_3)s) 
+			AND pt.parenttype = "Purchase Invoice" 
 		"""
 
-		params = {
-			"box_5": sgst_details[0].get("box_5"),
-			"box_5_1": sgst_details[0].get("box_5_1"),
-			"box_5_2": sgst_details[0].get("box_5_2"),
-			"box_5_3": sgst_details[0].get("box_5_3"),
-		}
+		# NEW params (empty initially)
+		params = {}
+
+		# NEW accounts logic (fix)
+		accounts = tuple(
+			acc for acc in [
+				sgst_details[0].get("box_5"),
+				sgst_details[0].get("box_5_1"),
+				sgst_details[0].get("box_5_2"),
+				sgst_details[0].get("box_5_3"),
+			] if acc
+		)
+
+		if not accounts:
+			return []
+
+		pi_query += " AND pt.account_head IN %(accounts)s"
+		params["accounts"] = accounts
 
 		if filters.company:
 			pi_query += " AND p.company = %(company)s"
