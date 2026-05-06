@@ -13,7 +13,8 @@ def execute(filters=None):
 def get_columns(filters=None):
 	columns = [
 		{"fieldname": "transaction_type", "label": _("Transaction Type"), "fieldtype": "Data", "width": 1000},
-		{"fieldname": "amount", "label": _("AMOUNT"), "fieldtype": "Currency", "width": 200},
+		{"fieldname": "amount", "label": _("AMOUNT"), "fieldtype": "Currency", "options": "currency", "width": 200},
+		{"fieldname": "currency", "label": _("Currency"), "fieldtype": "Data", "hidden": 1},
 	]
 	return columns
 
@@ -21,6 +22,9 @@ def get_columns(filters=None):
 def get_data(filters=None):
 	out_data = []
 	acc_diff = 0
+	if not filters.get("company"):
+		return out_data
+	currency = frappe.get_cached_value("Company", filters.company, "default_currency")
 	from_date = filters.get("from_date")
 	to_date = filters.get("to_date")
 	sgst_details = frappe.db.get_all(
@@ -299,6 +303,8 @@ def get_data(filters=None):
 		box_12 = [{"transaction_type": "Pre-registration claims", "heading": 1, "amount": 0}]
 		box_13 = [{"transaction_type": "Revenue", "heading": 1, "amount": acc_diff}]
 		out_data = out_data + box_8 + box_9 + box_10 + box_11 + box_12 + box_13
+	for row in out_data:
+		row["currency"] = currency
 	return out_data
 
 
@@ -306,6 +312,9 @@ def get_account_data(filters, sgst_details):
 	total = 0
 	other_income_total = 0
 	acc_diff = 0
+
+	if not filters.get("company"):
+		return 0
 
 	if not filters.from_date or not filters.to_date:
 		return 0
@@ -352,7 +361,7 @@ def get_account_data(filters, sgst_details):
 		ignore_accumulated_values_for_fy=True,
 	)
 
-	for inc in income:
+	for inc in (income or []):
 		account_name = clean_name(inc.get("account_name", ""))
 		if account_name == "Total Income (Credit)":
 			total = inc.get("total")

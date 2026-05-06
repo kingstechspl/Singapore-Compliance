@@ -24,15 +24,19 @@ def get_columns(filters=None):
 			"width": 100,
 		},
 		{"fieldname": "gst_rate", "label": _("GST RATE"), "fieldtype": "Data", "width": 100},
-		{"fieldname": "net_amount", "label": _("NET AMOUNT"), "fieldtype": "Currency", "width": 100},
-		{"fieldname": "amount", "label": _("AMOUNT"), "fieldtype": "Currency", "width": 100},
-		{"fieldname": "balance", "label": _("BALANCE"), "fieldtype": "Currency", "width": 100},
+		{"fieldname": "net_amount", "label": _("NET AMOUNT"), "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "amount", "label": _("AMOUNT"), "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "balance", "label": _("BALANCE"), "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"fieldname": "currency", "label": _("Currency"), "fieldtype": "Data", "hidden": 1},
 	]
 	return columns
 
 
 def get_data(filters=None):
 	out_data = []
+	if not filters.get("company"):
+		return out_data
+	currency = frappe.get_cached_value("Company", filters.company, "default_currency")
 	from_date = filters.get("from_date")
 	to_date = filters.get("to_date")
 	sgst_details = frappe.db.get_all(
@@ -420,4 +424,6 @@ def get_data(filters=None):
 		# 		val['amount'] = val['amount'] + total_jv
 		# 		frappe.msgprint(json.dumps(val['amount'], default=str))
 
+	for row in out_data:
+		row["currency"] = currency
 	return out_data
