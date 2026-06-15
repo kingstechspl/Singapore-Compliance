@@ -261,7 +261,7 @@ def get_data(filters=None):
 			{"transaction_type": "<b>Box 4 Total (Box 1, Box 2, Box 3)</b>", "heading": 1, "amount": total},
 		]
 
-		box_5_accounts = '", "'.join(
+		box_5_accounts = [
 			acc for acc in [
 				sgst_details[0].get("box_5"),
 				sgst_details[0].get("box_5_1"),
@@ -269,53 +269,50 @@ def get_data(filters=None):
 				sgst_details[0].get("box_5_3"),
 			]
 			if acc
-		)
-		pi_query = f'''
-		SELECT
-			p.posting_date AS date,
-			'Purchase Invoice' AS transaction_type,
-			p.name AS name,
-			p.supplier_name AS party_name,
-			pt.account_head AS gst_code,
-			CASE
-				WHEN pi.item_tax_template IS NOT NULL AND pi.item_tax_template != ''
-				THEN ittd.tax_rate
-				ELSE pt.rate
-			END as gst_rate,
-			pi.base_net_amount as net_amount,
-			CASE
-				WHEN pi.item_tax_template IS NOT NULL AND pi.item_tax_template != ''
-				THEN IFNULL(pi.base_net_amount * ittd.tax_rate / 100, 0)
-				ELSE (pi.base_net_amount / NULLIF(p.base_net_total, 0)) * pt.base_tax_amount
-			END as amount,
-			pi.base_net_amount as taxless_total
-		FROM
-			`tabPurchase Invoice` AS p
-			JOIN `tabPurchase Taxes and Charges` AS pt ON pt.parent = p.name
-				AND pt.name = (
-					SELECT pt2.name FROM `tabPurchase Taxes and Charges` AS pt2
-					WHERE pt2.parent = p.name AND pt2.parenttype = "Purchase Invoice"
-					AND pt2.account_head in ("{box_5_accounts}")
-					ORDER BY pt2.idx LIMIT 1
-				)
-			JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
-			LEFT JOIN `tabItem Tax Template Detail` AS ittd ON ittd.parent = pi.item_tax_template
-				AND ittd.tax_type = pt.account_head
-		WHERE
-			p.docstatus = 1 AND pt.parenttype = "Purchase Invoice" AND
-			pt.account_head in ("{box_5_accounts}")'''
+		]
 
-		if filters.company:
-			pi_query += f' AND p.company="{filters.company}"'
+		p_sql_data = []
+		if box_5_accounts:
+			placeholders = ", ".join(["%s"] * len(box_5_accounts))
+			pi_params = list(box_5_accounts)
+			pi_conditions = (
+				f"p.docstatus = 1"
+				f" AND ittd.tax_type IN ({placeholders})"
+			)
 
-		if from_date:
-			pi_query += f' AND DATE(p.posting_date) >= "{from_date}"'
-		if to_date:
-			pi_query += f' AND DATE(p.posting_date) <= "{to_date}"'
+			if filters.company:
+				pi_conditions += " AND p.company = %s"
+				pi_params.append(filters.company)
+			if from_date:
+				pi_conditions += " AND DATE(p.posting_date) >= %s"
+				pi_params.append(from_date)
+			if to_date:
+				pi_conditions += " AND DATE(p.posting_date) <= %s"
+				pi_params.append(to_date)
 
-		pi_query += " ORDER BY p.name"
-
-		p_sql_data = frappe.db.sql(pi_query, as_dict=True)
+			p_sql_data = frappe.db.sql(
+				f"""
+				SELECT
+					p.posting_date AS date,
+					'Purchase Invoice' AS transaction_type,
+					p.name AS name,
+					p.supplier_name AS party_name,
+					ittd.tax_type AS gst_code,
+					ittd.tax_rate AS gst_rate,
+					pi.base_net_amount AS net_amount,
+					IFNULL(pi.base_net_amount * ittd.tax_rate / 100, 0) AS amount,
+					pi.base_net_amount AS taxless_total
+				FROM
+					`tabPurchase Invoice` AS p
+					JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
+					JOIN `tabItem Tax Template Detail` AS ittd ON ittd.parent = pi.item_tax_template
+				WHERE
+					{pi_conditions}
+				ORDER BY p.name, pi.idx
+				""",
+				pi_params,
+				as_dict=True,
+			)
 		box_5_balance_total = 0
 		box_7_balance_total = 0
 		box_5 = [
