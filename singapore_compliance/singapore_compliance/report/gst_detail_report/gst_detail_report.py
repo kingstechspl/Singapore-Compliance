@@ -149,7 +149,7 @@ def get_data(filters=None):
 			si.customer_name AS party_name,
 			st.account_head AS gst_code,
 			st.rate as gst_rate,
-			st.base_total as net_amount,
+			IF(st.included_in_print_rate, si.net_total, si.base_total) as net_amount,
 			st.base_tax_amount as amount,
 			IF(st.included_in_print_rate, si.net_total, si.base_total) as taxless_total
 		FROM
@@ -206,8 +206,8 @@ def get_data(filters=None):
 					data["balance"] = box_6_balance_total
 					sales_invoice_with_tax.append(data)
 				cp_dict = data.copy()
-				cp_dict["gst_rate"] = (0,)
-				cp_dict["net_amount"] = (0,)
+				cp_dict["gst_rate"] = 0
+				cp_dict["net_amount"] = 0
 				cp_dict["amount"] = cp_dict["taxless_total"]
 				if data.get("gst_code") == sgst_details[0].get("box_1"):
 					total = total + cp_dict.get("amount")
@@ -274,21 +274,23 @@ def get_data(filters=None):
 		p_sql_data = []
 		if box_5_accounts:
 			placeholders = ", ".join(["%s"] * len(box_5_accounts))
-			pi_params = list(box_5_accounts)
-			pi_conditions = (
-				f"p.docstatus = 1"
-				f" AND ittd.tax_type IN ({placeholders})"
-			)
 
+			date_conditions = ""
+			date_params = []
 			if filters.company:
-				pi_conditions += " AND p.company = %s"
-				pi_params.append(filters.company)
+				date_conditions += " AND p.company = %s"
+				date_params.append(filters.company)
 			if from_date:
-				pi_conditions += " AND DATE(p.posting_date) >= %s"
-				pi_params.append(from_date)
+				date_conditions += " AND DATE(p.posting_date) >= %s"
+				date_params.append(from_date)
 			if to_date:
-				pi_conditions += " AND DATE(p.posting_date) <= %s"
-				pi_params.append(to_date)
+				date_conditions += " AND DATE(p.posting_date) <= %s"
+				date_params.append(to_date)
+
+			# Items with item tax template: use per-item account head and rate
+			params_with_template = list(box_5_accounts) + date_params
+			# Items without item tax template: fall back to invoice-level tax charges
+			params_no_template = list(box_5_accounts) + date_params
 
 			p_sql_data = frappe.db.sql(
 				f"""
@@ -307,10 +309,37 @@ def get_data(filters=None):
 					JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
 					JOIN `tabItem Tax Template Detail` AS ittd ON ittd.parent = pi.item_tax_template
 				WHERE
-					{pi_conditions}
-				ORDER BY p.name, pi.idx
+					p.docstatus = 1
+					AND pi.item_tax_template IS NOT NULL AND pi.item_tax_template != ''
+					AND ittd.tax_type IN ({placeholders})
+					{date_conditions}
+
+				UNION ALL
+
+				SELECT
+					p.posting_date AS date,
+					'Purchase Invoice' AS transaction_type,
+					p.name AS name,
+					p.supplier_name AS party_name,
+					pt.account_head AS gst_code,
+					pt.rate AS gst_rate,
+					pi.base_net_amount AS net_amount,
+					(pi.base_net_amount / NULLIF(p.base_net_total, 0)) * pt.base_tax_amount AS amount,
+					pi.base_net_amount AS taxless_total
+				FROM
+					`tabPurchase Invoice` AS p
+					JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
+					JOIN `tabPurchase Taxes and Charges` AS pt ON pt.parent = p.name
+				WHERE
+					p.docstatus = 1
+					AND (pi.item_tax_template IS NULL OR pi.item_tax_template = '')
+					AND pt.parenttype = 'Purchase Invoice'
+					AND pt.account_head IN ({placeholders})
+					{date_conditions}
+
+				ORDER BY name, date
 				""",
-				pi_params,
+				params_with_template + params_no_template,
 				as_dict=True,
 			)
 		box_5_balance_total = 0
@@ -338,7 +367,7 @@ def get_data(filters=None):
 				data["balance"] = box_7_balance_total
 				purchase_invoice_with_tax.append(data)
 				cp_dict = data.copy()
-				cp_dict["net_amount"] = (0,)
+				cp_dict["net_amount"] = 0
 				cp_dict["amount"] = cp_dict["taxless_total"]
 				box_5_balance_total = box_5_balance_total + cp_dict.get("amount")
 				cp_dict["balance"] = box_5_balance_total
