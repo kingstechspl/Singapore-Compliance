@@ -273,28 +273,21 @@ def get_data(filters=None):
 
 		p_sql_data = []
 		if box_5_accounts:
-			placeholders = ", ".join(["%s"] * len(box_5_accounts))
+			# Embed box_5 accounts directly as escaped literals so they appear once in SQL,
+			# not repeated per-branch — avoids positional %s misalignment across UNION branches.
+			escaped_accounts = ", ".join(frappe.db.escape(a) for a in box_5_accounts)
 
 			date_conditions = ""
-			date_params = []
+			date_params = {}
 			if filters.company:
-				date_conditions += " AND p.company = %s"
-				date_params.append(filters.company)
+				date_conditions += " AND p.company = %(company)s"
+				date_params["company"] = filters.company
 			if from_date:
-				date_conditions += " AND DATE(p.posting_date) >= %s"
-				date_params.append(from_date)
+				date_conditions += " AND DATE(p.posting_date) >= %(from_date)s"
+				date_params["from_date"] = from_date
 			if to_date:
-				date_conditions += " AND DATE(p.posting_date) <= %s"
-				date_params.append(to_date)
-
-			# Branch 1: item_tax_template matches box_5
-			params_b1 = list(box_5_accounts) + date_params
-			# Branch 2: NULL template, pure invoice (NOT EXISTS subquery + account_head IN)
-			params_b2 = list(box_5_accounts) + list(box_5_accounts) + date_params
-			# Branch 3: NULL template, mixed invoice (EXISTS subquery + account_head NOT IN)
-			params_b3 = list(box_5_accounts) + list(box_5_accounts) + date_params
-			# Branch 4: non-matching template (NOT EXISTS + account_head IN)
-			params_b4 = list(box_5_accounts) + list(box_5_accounts) + date_params
+				date_conditions += " AND DATE(p.posting_date) <= %(to_date)s"
+				date_params["to_date"] = to_date
 
 			p_sql_data = frappe.db.sql(
 				f"""
@@ -315,7 +308,7 @@ def get_data(filters=None):
 				WHERE
 					p.docstatus = 1
 					AND pi.item_tax_template IS NOT NULL AND pi.item_tax_template != ''
-					AND ittd.tax_type IN ({placeholders})
+					AND ittd.tax_type IN ({escaped_accounts})
 					{date_conditions}
 
 				UNION ALL
@@ -343,16 +336,16 @@ def get_data(filters=None):
 						SELECT 1 FROM `tabPurchase Invoice Item` pi2
 						JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
 						WHERE pi2.parent = p.name
-						AND ittd2.tax_type IN ({placeholders})
+						AND ittd2.tax_type IN ({escaped_accounts})
 					)
 					AND pt.parenttype = 'Purchase Invoice'
-					AND pt.account_head IN ({placeholders})
+					AND pt.account_head IN ({escaped_accounts})
 					{date_conditions}
 
 				UNION ALL
 
 				-- Items with no item_tax_template on mixed invoices (other items have box_5 templates):
-				-- show with zero tax under the zero-tax invoice-level account
+				-- show with zero tax under the zero-tax box_5 invoice-level account
 				SELECT
 					p.posting_date AS date,
 					'Purchase Invoice' AS transaction_type,
@@ -374,11 +367,16 @@ def get_data(filters=None):
 						SELECT 1 FROM `tabPurchase Invoice Item` pi2
 						JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
 						WHERE pi2.parent = p.name
-						AND ittd2.tax_type IN ({placeholders})
+						AND ittd2.tax_type IN ({escaped_accounts})
 					)
 					AND pt.parenttype = 'Purchase Invoice'
 					AND pt.base_tax_amount = 0
-					AND pt.account_head NOT IN ({placeholders})
+					AND pt.account_head IN ({escaped_accounts})
+					AND NOT EXISTS (
+						SELECT 1 FROM `tabItem Tax Template Detail` ittd3
+						WHERE ittd3.tax_type = pt.account_head
+						AND ittd3.tax_rate > 0
+					)
 					{date_conditions}
 
 				UNION ALL
@@ -404,16 +402,16 @@ def get_data(filters=None):
 					AND NOT EXISTS (
 						SELECT 1 FROM `tabItem Tax Template Detail` ittd2
 						WHERE ittd2.parent = pi.item_tax_template
-						AND ittd2.tax_type IN ({placeholders})
+						AND ittd2.tax_type IN ({escaped_accounts})
 					)
 					AND pt.parenttype = 'Purchase Invoice'
 					AND pt.base_tax_amount = 0
-					AND pt.account_head IN ({placeholders})
+					AND pt.account_head IN ({escaped_accounts})
 					{date_conditions}
 
 				ORDER BY name, date
 				""",
-				params_b1 + params_b2 + params_b3 + params_b4,
+				date_params,
 				as_dict=True,
 			)
 		box_5_balance_total = 0
