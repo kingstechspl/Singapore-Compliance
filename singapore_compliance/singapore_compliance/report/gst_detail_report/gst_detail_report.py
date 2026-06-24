@@ -287,10 +287,14 @@ def get_data(filters=None):
 				date_conditions += " AND DATE(p.posting_date) <= %s"
 				date_params.append(to_date)
 
-			# Items with item tax template: use per-item account head and rate
-			params_with_template = list(box_5_accounts) + date_params
-			# Items without item tax template: fall back to invoice-level tax charges
-			params_no_template = list(box_5_accounts) + date_params
+			# Branch 1: item_tax_template matches box_5
+			params_b1 = list(box_5_accounts) + date_params
+			# Branch 2: NULL template, pure invoice (NOT EXISTS subquery + account_head IN)
+			params_b2 = list(box_5_accounts) + list(box_5_accounts) + date_params
+			# Branch 3: NULL template, mixed invoice (EXISTS subquery + account_head NOT IN)
+			params_b3 = list(box_5_accounts) + list(box_5_accounts) + date_params
+			# Branch 4: non-matching template (NOT EXISTS + account_head IN)
+			params_b4 = list(box_5_accounts) + list(box_5_accounts) + date_params
 
 			p_sql_data = frappe.db.sql(
 				f"""
@@ -316,6 +320,8 @@ def get_data(filters=None):
 
 				UNION ALL
 
+				-- Items with no item_tax_template on invoices where NO other item has a box_5 template:
+				-- use proportional share of invoice-level tax
 				SELECT
 					p.posting_date AS date,
 					'Purchase Invoice' AS transaction_type,
@@ -333,13 +339,81 @@ def get_data(filters=None):
 				WHERE
 					p.docstatus = 1
 					AND (pi.item_tax_template IS NULL OR pi.item_tax_template = '')
+					AND NOT EXISTS (
+						SELECT 1 FROM `tabPurchase Invoice Item` pi2
+						JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
+						WHERE pi2.parent = p.name
+						AND ittd2.tax_type IN ({placeholders})
+					)
 					AND pt.parenttype = 'Purchase Invoice'
+					AND pt.account_head IN ({placeholders})
+					{date_conditions}
+
+				UNION ALL
+
+				-- Items with no item_tax_template on mixed invoices (other items have box_5 templates):
+				-- show with zero tax under the zero-tax invoice-level account
+				SELECT
+					p.posting_date AS date,
+					'Purchase Invoice' AS transaction_type,
+					p.name AS name,
+					p.supplier_name AS party_name,
+					pt.account_head AS gst_code,
+					pt.rate AS gst_rate,
+					pi.base_net_amount AS net_amount,
+					0 AS amount,
+					pi.base_net_amount AS taxless_total
+				FROM
+					`tabPurchase Invoice` AS p
+					JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
+					JOIN `tabPurchase Taxes and Charges` AS pt ON pt.parent = p.name
+				WHERE
+					p.docstatus = 1
+					AND (pi.item_tax_template IS NULL OR pi.item_tax_template = '')
+					AND EXISTS (
+						SELECT 1 FROM `tabPurchase Invoice Item` pi2
+						JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
+						WHERE pi2.parent = p.name
+						AND ittd2.tax_type IN ({placeholders})
+					)
+					AND pt.parenttype = 'Purchase Invoice'
+					AND pt.base_tax_amount = 0
+					AND pt.account_head NOT IN ({placeholders})
+					{date_conditions}
+
+				UNION ALL
+
+				-- Items whose item_tax_template has no matching box_5 account: show with zero tax
+				SELECT
+					p.posting_date AS date,
+					'Purchase Invoice' AS transaction_type,
+					p.name AS name,
+					p.supplier_name AS party_name,
+					pt.account_head AS gst_code,
+					pt.rate AS gst_rate,
+					pi.base_net_amount AS net_amount,
+					0 AS amount,
+					pi.base_net_amount AS taxless_total
+				FROM
+					`tabPurchase Invoice` AS p
+					JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
+					JOIN `tabPurchase Taxes and Charges` AS pt ON pt.parent = p.name
+				WHERE
+					p.docstatus = 1
+					AND pi.item_tax_template IS NOT NULL AND pi.item_tax_template != ''
+					AND NOT EXISTS (
+						SELECT 1 FROM `tabItem Tax Template Detail` ittd2
+						WHERE ittd2.parent = pi.item_tax_template
+						AND ittd2.tax_type IN ({placeholders})
+					)
+					AND pt.parenttype = 'Purchase Invoice'
+					AND pt.base_tax_amount = 0
 					AND pt.account_head IN ({placeholders})
 					{date_conditions}
 
 				ORDER BY name, date
 				""",
-				params_with_template + params_no_template,
+				params_b1 + params_b2 + params_b3 + params_b4,
 				as_dict=True,
 			)
 		box_5_balance_total = 0
