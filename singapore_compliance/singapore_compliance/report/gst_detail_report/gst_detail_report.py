@@ -299,7 +299,21 @@ def get_data(filters=None):
 					ittd.tax_type AS gst_code,
 					ittd.tax_rate AS gst_rate,
 					pi.base_net_amount AS net_amount,
-					IFNULL(pi.base_net_amount * ittd.tax_rate / 100, 0) AS amount,
+					IFNULL(
+						pi.base_net_amount
+						/ NULLIF((
+							SELECT SUM(pi2.base_net_amount)
+							FROM `tabPurchase Invoice Item` pi2
+							JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
+							WHERE pi2.parent = p.name AND ittd2.tax_type = ittd.tax_type
+						), 0)
+						* IFNULL((
+							SELECT pt.base_tax_amount
+							FROM `tabPurchase Taxes and Charges` pt
+							WHERE pt.parent = p.name AND pt.account_head = ittd.tax_type
+							LIMIT 1
+						), pi.base_net_amount * ittd.tax_rate / 100),
+					0) AS amount,
 					pi.base_net_amount AS taxless_total
 				FROM
 					`tabPurchase Invoice` AS p
