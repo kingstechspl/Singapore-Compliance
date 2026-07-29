@@ -48,6 +48,22 @@ def get_data(filters=None):
 			"box_5_3",
 			"bank_interest_income",
 			"realised_exchange_gainloss",
+			"landed_cost_gst_account",
+			"landed_cost_gst_account_1",
+			"landed_cost_gst_account_2",
+			"landed_cost_gst_account_3",
+			"expense_claim_gst_account",
+			"expense_claim_gst_account_1",
+			"expense_claim_gst_account_2",
+			"expense_claim_gst_account_3",
+			"advance_gst_account",
+			"advance_gst_account_1",
+			"advance_gst_account_2",
+			"advance_gst_account_3",
+			"journal_entry_gst_account",
+			"journal_entry_gst_account_1",
+			"journal_entry_gst_account_2",
+			"journal_entry_gst_account_3",
 		],
 	)
 	if sgst_details and (
@@ -428,6 +444,205 @@ def get_data(filters=None):
 				date_params,
 				as_dict=True,
 			)
+
+		landed_cost_accounts = [
+			acc for acc in [
+				sgst_details[0].get("landed_cost_gst_account"),
+				sgst_details[0].get("landed_cost_gst_account_1"),
+				sgst_details[0].get("landed_cost_gst_account_2"),
+				sgst_details[0].get("landed_cost_gst_account_3"),
+			]
+			if acc
+		]
+		expense_claim_accounts = [
+			acc for acc in [
+				sgst_details[0].get("expense_claim_gst_account"),
+				sgst_details[0].get("expense_claim_gst_account_1"),
+				sgst_details[0].get("expense_claim_gst_account_2"),
+				sgst_details[0].get("expense_claim_gst_account_3"),
+			]
+			if acc
+		]
+		advance_accounts = [
+			acc for acc in [
+				sgst_details[0].get("advance_gst_account"),
+				sgst_details[0].get("advance_gst_account_1"),
+				sgst_details[0].get("advance_gst_account_2"),
+				sgst_details[0].get("advance_gst_account_3"),
+			]
+			if acc
+		]
+		journal_entry_accounts = [
+			acc for acc in [
+				sgst_details[0].get("journal_entry_gst_account"),
+				sgst_details[0].get("journal_entry_gst_account_1"),
+				sgst_details[0].get("journal_entry_gst_account_2"),
+				sgst_details[0].get("journal_entry_gst_account_3"),
+			]
+			if acc
+		]
+
+		if landed_cost_accounts:
+			lc_conditions = ""
+			lc_params = {"accounts": tuple(landed_cost_accounts)}
+			if filters.company:
+				lc_conditions += " AND lcv.company = %(company)s"
+				lc_params["company"] = filters.company
+			if from_date:
+				lc_conditions += " AND lcv.posting_date >= %(from_date)s"
+				lc_params["from_date"] = from_date
+			if to_date:
+				lc_conditions += " AND lcv.posting_date <= %(to_date)s"
+				lc_params["to_date"] = to_date
+
+			landed_cost_data = frappe.db.sql(
+				f"""
+				SELECT
+					lcv.posting_date AS date,
+					'Landed Cost Voucher' AS transaction_type,
+					lcv.name AS name,
+					(
+						SELECT lcpr.supplier
+						FROM `tabLanded Cost Purchase Receipt` lcpr
+						WHERE lcpr.parent = lcv.name
+						LIMIT 1
+					) AS party_name,
+					lct.expense_account AS gst_code,
+					0 AS gst_rate,
+					lct.base_amount AS net_amount,
+					lct.base_amount AS amount,
+					0 AS taxless_total
+				FROM
+					`tabLanded Cost Voucher` AS lcv
+					JOIN `tabLanded Cost Taxes and Charges` AS lct ON lct.parent = lcv.name
+				WHERE
+					lcv.docstatus = 1
+					AND lct.expense_account IN %(accounts)s
+					{lc_conditions}
+				ORDER BY lcv.name, lcv.posting_date
+				""",
+				lc_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + landed_cost_data
+
+		if expense_claim_accounts:
+			ec_conditions = ""
+			ec_params = {"accounts": tuple(expense_claim_accounts)}
+			if filters.company:
+				ec_conditions += " AND ec.company = %(company)s"
+				ec_params["company"] = filters.company
+			if from_date:
+				ec_conditions += " AND ec.posting_date >= %(from_date)s"
+				ec_params["from_date"] = from_date
+			if to_date:
+				ec_conditions += " AND ec.posting_date <= %(to_date)s"
+				ec_params["to_date"] = to_date
+
+			expense_claim_data = frappe.db.sql(
+				f"""
+				SELECT
+					ec.posting_date AS date,
+					'Expense Claim' AS transaction_type,
+					ec.name AS name,
+					ec.employee_name AS party_name,
+					etc.account_head AS gst_code,
+					etc.rate AS gst_rate,
+					ec.total_claimed_amount AS net_amount,
+					etc.tax_amount AS amount,
+					ec.total_claimed_amount AS taxless_total
+				FROM
+					`tabExpense Claim` AS ec
+					JOIN `tabExpense Taxes and Charges` AS etc ON etc.parent = ec.name
+				WHERE
+					ec.docstatus = 1
+					AND etc.account_head IN %(accounts)s
+					{ec_conditions}
+				ORDER BY ec.name, ec.posting_date
+				""",
+				ec_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + expense_claim_data
+
+		if advance_accounts:
+			adv_conditions = ""
+			adv_params = {"accounts": tuple(advance_accounts)}
+			if filters.company:
+				adv_conditions += " AND pe.company = %(company)s"
+				adv_params["company"] = filters.company
+			if from_date:
+				adv_conditions += " AND pe.posting_date >= %(from_date)s"
+				adv_params["from_date"] = from_date
+			if to_date:
+				adv_conditions += " AND pe.posting_date <= %(to_date)s"
+				adv_params["to_date"] = to_date
+
+			advance_data = frappe.db.sql(
+				f"""
+				SELECT
+					pe.posting_date AS date,
+					'Payment Entry (Advance)' AS transaction_type,
+					pe.name AS name,
+					pe.party_name AS party_name,
+					atc.account_head AS gst_code,
+					atc.rate AS gst_rate,
+					atc.base_total AS net_amount,
+					atc.base_tax_amount AS amount,
+					atc.base_total AS taxless_total
+				FROM
+					`tabPayment Entry` AS pe
+					JOIN `tabAdvance Taxes and Charges` AS atc ON atc.parent = pe.name
+				WHERE
+					pe.docstatus = 1
+					AND atc.account_head IN %(accounts)s
+					{adv_conditions}
+				ORDER BY pe.name, pe.posting_date
+				""",
+				adv_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + advance_data
+
+		if journal_entry_accounts:
+			je_gst_conditions = ""
+			je_gst_params = {"accounts": tuple(journal_entry_accounts)}
+			if filters.company:
+				je_gst_conditions += " AND je.company = %(company)s"
+				je_gst_params["company"] = filters.company
+			if from_date:
+				je_gst_conditions += " AND je.posting_date >= %(from_date)s"
+				je_gst_params["from_date"] = from_date
+			if to_date:
+				je_gst_conditions += " AND je.posting_date <= %(to_date)s"
+				je_gst_params["to_date"] = to_date
+
+			je_gst_data = frappe.db.sql(
+				f"""
+				SELECT
+					je.posting_date AS date,
+					'Journal Entry' AS transaction_type,
+					je.name AS name,
+					jea.party AS party_name,
+					jea.account AS gst_code,
+					0 AS gst_rate,
+					0 AS net_amount,
+					IFNULL(jea.debit_in_account_currency, 0) - IFNULL(jea.credit_in_account_currency, 0) AS amount,
+					0 AS taxless_total
+				FROM
+					`tabJournal Entry` AS je
+					JOIN `tabJournal Entry Account` AS jea ON jea.parent = je.name
+				WHERE
+					je.docstatus = 1
+					AND jea.account IN %(accounts)s
+					{je_gst_conditions}
+				ORDER BY je.name, je.posting_date
+				""",
+				je_gst_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + je_gst_data
+
 		box_5_balance_total = 0
 		box_7_balance_total = 0
 		box_5 = [

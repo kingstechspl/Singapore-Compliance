@@ -22,7 +22,31 @@
   "box_5_2",
   "box_5_3",
   "section_break_5",
-  "other_income"
+  "other_income",
+  "section_break_landed_cost",
+  "landed_cost_gst_account",
+  "landed_cost_gst_account_1",
+  "column_break_landed_cost",
+  "landed_cost_gst_account_2",
+  "landed_cost_gst_account_3",
+  "section_break_expense_claim",
+  "expense_claim_gst_account",
+  "expense_claim_gst_account_1",
+  "column_break_expense_claim",
+  "expense_claim_gst_account_2",
+  "expense_claim_gst_account_3",
+  "section_break_advance",
+  "advance_gst_account",
+  "advance_gst_account_1",
+  "column_break_advance",
+  "advance_gst_account_2",
+  "advance_gst_account_3",
+  "section_break_journal_entry",
+  "journal_entry_gst_account",
+  "journal_entry_gst_account_1",
+  "column_break_journal_entry",
+  "journal_entry_gst_account_2",
+  "journal_entry_gst_account_3"
  ],
  "fields": [
   {
@@ -119,12 +143,144 @@
    "fieldtype": "Link",
    "label": "Other Income",
    "options": "Account"
+  },
+  {
+   "fieldname": "section_break_landed_cost",
+   "fieldtype": "Section Break",
+   "label": "Landed Cost GST Accounts"
+  },
+  {
+   "fieldname": "landed_cost_gst_account",
+   "fieldtype": "Link",
+   "label": "Landed Cost GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "landed_cost_gst_account_1",
+   "fieldtype": "Link",
+   "label": "Landed Cost GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_landed_cost",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "landed_cost_gst_account_2",
+   "fieldtype": "Link",
+   "label": "Landed Cost GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "landed_cost_gst_account_3",
+   "fieldtype": "Link",
+   "label": "Landed Cost GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "section_break_expense_claim",
+   "fieldtype": "Section Break",
+   "label": "Expense Claim GST Accounts"
+  },
+  {
+   "fieldname": "expense_claim_gst_account",
+   "fieldtype": "Link",
+   "label": "Expense Claim GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "expense_claim_gst_account_1",
+   "fieldtype": "Link",
+   "label": "Expense Claim GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_expense_claim",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "expense_claim_gst_account_2",
+   "fieldtype": "Link",
+   "label": "Expense Claim GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "expense_claim_gst_account_3",
+   "fieldtype": "Link",
+   "label": "Expense Claim GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "section_break_advance",
+   "fieldtype": "Section Break",
+   "label": "Advance GST Accounts"
+  },
+  {
+   "fieldname": "advance_gst_account",
+   "fieldtype": "Link",
+   "label": "Advance GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "advance_gst_account_1",
+   "fieldtype": "Link",
+   "label": "Advance GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_advance",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "advance_gst_account_2",
+   "fieldtype": "Link",
+   "label": "Advance GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "advance_gst_account_3",
+   "fieldtype": "Link",
+   "label": "Advance GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "section_break_journal_entry",
+   "fieldtype": "Section Break",
+   "label": "Journal Entry GST Accounts"
+  },
+  {
+   "fieldname": "journal_entry_gst_account",
+   "fieldtype": "Link",
+   "label": "Journal Entry GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "journal_entry_gst_account_1",
+   "fieldtype": "Link",
+   "label": "Journal Entry GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "column_break_journal_entry",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "journal_entry_gst_account_2",
+   "fieldtype": "Link",
+   "label": "Journal Entry GST Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "journal_entry_gst_account_3",
+   "fieldtype": "Link",
+   "label": "Journal Entry GST Account",
+   "options": "Account"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-15 18:21:42.671806",
+ "modified": "2026-07-24 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Singapore Compliance",
  "name": "SGST Detail",
