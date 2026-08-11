@@ -2,6 +2,7 @@ import json
 
 import frappe
 from frappe import _
+from frappe.utils import flt
 
 
 def execute(filters=None):
@@ -112,7 +113,7 @@ def get_data(filters=None):
 		jv_data = frappe.db.sql(jv_query, params, as_dict=True)
 		total_jv = 0
 		for data in jv_data:
-			data["amount"] = -data.get("credit") or data.get("debit")
+			data["amount"] = flt(-data.get("credit") or data.get("debit"), 2)
 			k = data.get("debit") - data.get("credit")
 			total_jv = total_jv + k
 		py_query = """
@@ -155,6 +156,7 @@ def get_data(filters=None):
 		py_data = frappe.db.sql(py_query, params_py, as_dict=True)
 		total_py = 0
 		for data in py_data:
+			data["amount"] = flt(data.get("amount"), 2)
 			k = data.get("amount")
 			total_py = total_py + k
 		query = """
@@ -193,10 +195,10 @@ def get_data(filters=None):
 			{"transaction_type": "Box 1 Total value of standard-rated supplies (excluding GST)", "heading": 1}
 		]
 		box_2 = [
-			{"transaction_type": "Box 2 Total value of standard-rated supplies (excluding GST)", "heading": 1}
+			{"transaction_type": "Box 2 Total value of zero rated supplies", "heading": 1}
 		]
 		box_3 = [
-			{"transaction_type": "Box 3 Total value of standard-rated supplies (excluding GST)", "heading": 1}
+			{"transaction_type": "Box 3 Total value of exempt supplies", "heading": 1}
 		]
 		out_data = []
 		sales_invoice_with_tax = []
@@ -217,6 +219,7 @@ def get_data(filters=None):
 					sgst_details[0].get("box_2"),
 					sgst_details[0].get("box_3"),
 				]:
+					data["amount"] = flt(data["amount"], 2)
 					sales_invoice_with_tax_total = sales_invoice_with_tax_total + data["amount"]
 					box_6_balance_total = box_6_balance_total + data.get("amount")
 					data["balance"] = box_6_balance_total
@@ -224,7 +227,7 @@ def get_data(filters=None):
 				cp_dict = data.copy()
 				cp_dict["gst_rate"] = 0
 				cp_dict["net_amount"] = 0
-				cp_dict["amount"] = cp_dict["taxless_total"]
+				cp_dict["amount"] = flt(cp_dict["taxless_total"], 2)
 				if data.get("gst_code") == sgst_details[0].get("box_1"):
 					total = total + cp_dict.get("amount")
 					box_1_total = box_1_total + cp_dict.get("amount")
@@ -259,14 +262,14 @@ def get_data(filters=None):
 		]
 		box_2_total_line = [
 			{
-				"transaction_type": "<b>Box 2 Total value of standard-rated supplies (excluding GST)</b>",
+				"transaction_type": "<b>Box 2 Total value of zero rated supplies</b>",
 				"heading": 1,
 				"amount": box_2_total,
 			}
 		]
 		box_3_total_line = [
 			{
-				"transaction_type": "<b>Box 3 Total value of standard-rated supplies (excluding GST)</b>",
+				"transaction_type": "<b>Box 3 Total value of exempt supplies</b>",
 				"heading": 1,
 				"amount": box_3_total,
 			}
@@ -587,9 +590,9 @@ def get_data(filters=None):
 					pe.party_name AS party_name,
 					atc.account_head AS gst_code,
 					atc.rate AS gst_rate,
-					atc.base_total AS net_amount,
+					(atc.base_total - atc.base_tax_amount) AS net_amount,
 					atc.base_tax_amount AS amount,
-					atc.base_total AS taxless_total
+					(atc.base_total - atc.base_tax_amount) AS taxless_total
 				FROM
 					`tabPayment Entry` AS pe
 					JOIN `tabAdvance Taxes and Charges` AS atc ON atc.parent = pe.name
@@ -660,16 +663,17 @@ def get_data(filters=None):
 				{"transaction_type": "Box 5 Total value of taxable purchases (excluding GST)", "heading": 1}
 			)
 
-			cp_sqldata = p_sql_data.copy()
+			cp_sqldata = sorted(p_sql_data, key=lambda d: (d.get("date"), (d.get("party_name") or "")))
 			for data in cp_sqldata:
 				# if data.get('gst_code') in [sgst_details[0].get('box_1'), sgst_details[0].get('box_2'), sgst_details[0].get('box_3')]:
+				data["amount"] = flt(data["amount"], 2)
 				purchase_invoice_with_tax_total = purchase_invoice_with_tax_total + data["amount"]
 				box_7_balance_total = box_7_balance_total + data.get("amount")
 				data["balance"] = box_7_balance_total
 				purchase_invoice_with_tax.append(data)
 				cp_dict = data.copy()
 				cp_dict["net_amount"] = 0
-				cp_dict["amount"] = cp_dict["taxless_total"]
+				cp_dict["amount"] = flt(cp_dict["taxless_total"], 2)
 				box_5_balance_total = box_5_balance_total + cp_dict.get("amount")
 				cp_dict["balance"] = box_5_balance_total
 				purchase_row_without_gst.append(cp_dict)

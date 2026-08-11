@@ -1,7 +1,9 @@
 import frappe
 from erpnext.accounts.report.financial_statements import get_data as financial_state_data
 from erpnext.accounts.report.financial_statements import get_period_list
+from erpnext.accounts.utils import get_fiscal_year
 from frappe import _
+from frappe.utils import flt
 
 
 def execute(filters=None):
@@ -39,6 +41,22 @@ def get_data(filters=None):
 			"bank_interest_income",
 			"realised_exchange_gainloss",
 			"other_income",
+			"landed_cost_gst_account",
+			"landed_cost_gst_account_1",
+			"landed_cost_gst_account_2",
+			"landed_cost_gst_account_3",
+			"expense_claim_gst_account",
+			"expense_claim_gst_account_1",
+			"expense_claim_gst_account_2",
+			"expense_claim_gst_account_3",
+			"advance_gst_account",
+			"advance_gst_account_1",
+			"advance_gst_account_2",
+			"advance_gst_account_3",
+			"journal_entry_gst_account",
+			"journal_entry_gst_account_1",
+			"journal_entry_gst_account_2",
+			"journal_entry_gst_account_3",
 		],
 	)
 	if not sgst_details:
@@ -90,7 +108,7 @@ def get_data(filters=None):
 		jv_data = frappe.db.sql(jv_query, tuple(jv_filters), as_dict=True)
 		total_jv = 0
 		for data in jv_data:
-			data["amount"] = data.get("debit") or data.get("credit")
+			data["amount"] = flt(data.get("debit") or data.get("credit"), 2)
 			k = data.get("debit") - data.get("credit")
 			total_jv = total_jv + k
 		py_query = """
@@ -131,6 +149,7 @@ def get_data(filters=None):
 		py_data = frappe.db.sql(py_query, tuple(py_filters), as_dict=True)
 		total_py = 0
 		for data in py_data:
+			data["amount"] = flt(data.get("amount"), 2)
 			k = data.get("amount")
 			total_py = total_py + k
 		query = """
@@ -174,10 +193,11 @@ def get_data(filters=None):
 					sgst_details[0].get("box_2"),
 					sgst_details[0].get("box_3"),
 				]:
+					data["amount"] = flt(data["amount"], 2)
 					sales_invoice_with_tax_total = sales_invoice_with_tax_total + data["amount"]
 					sales_invoice_with_tax.append(data)
 				cp_dict = data.copy()
-				cp_dict["amount"] = cp_dict["taxless_total"]
+				cp_dict["amount"] = flt(cp_dict["taxless_total"], 2)
 				if data.get("gst_code") == sgst_details[0].get("box_1"):
 					total = total + cp_dict.get("amount")
 					box_1_total = box_1_total + cp_dict.get("amount")
@@ -201,14 +221,15 @@ def get_data(filters=None):
 				"amount": box_2_total,
 			}
 		]
+		box_3_display_amount = abs(box_3_total + total_jv + total_py)
 		box_3_total_line = [
 			{
 				"transaction_type": "Box 3 Total value of exempt supplies (excluding GST)",
 				"heading": 1,
-				"amount": abs(box_3_total + total_jv + total_py),
+				"amount": box_3_display_amount,
 			}
 		]
-		total = total + abs(total_jv) + abs(total_py)
+		total = box_1_total + box_2_total + box_3_display_amount
 		out_data = box_1_total_line + box_2_total_line + box_3_total_line
 		out_data.append(
 			{"transaction_type": "Box 4 Total (Box 1, Box 2, Box 3)", "heading": 1, "amount": total}
@@ -225,24 +246,41 @@ def get_data(filters=None):
 		]
 		p_sql_data = []
 		if box_5_accounts:
-			placeholders = ", ".join(["%s"] * len(box_5_accounts))
+			# Embed box_5 accounts directly as escaped literals so they appear once in SQL,
+			# not repeated per-branch — avoids positional %s misalignment across UNION branches.
+			escaped_accounts = ", ".join(frappe.db.escape(a) for a in box_5_accounts)
+
 			date_conditions = ""
-			date_params = []
+			date_params = {}
 			if filters.company:
-				date_conditions += " AND p.company = %s"
-				date_params.append(filters.company)
+				date_conditions += " AND p.company = %(company)s"
+				date_params["company"] = filters.company
 			if from_date:
-				date_conditions += " AND DATE(p.posting_date) >= %s"
-				date_params.append(from_date)
+				date_conditions += " AND DATE(p.posting_date) >= %(from_date)s"
+				date_params["from_date"] = from_date
 			if to_date:
-				date_conditions += " AND DATE(p.posting_date) <= %s"
-				date_params.append(to_date)
+				date_conditions += " AND DATE(p.posting_date) <= %(to_date)s"
+				date_params["to_date"] = to_date
 
 			p_sql_data = frappe.db.sql(
 				f"""
 				SELECT
 					ittd.tax_type AS gst_code,
-					IFNULL(pi.base_net_amount * ittd.tax_rate / 100, 0) AS amount,
+					IFNULL(
+						pi.base_net_amount
+						/ NULLIF((
+							SELECT SUM(pi2.base_net_amount)
+							FROM `tabPurchase Invoice Item` pi2
+							JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
+							WHERE pi2.parent = p.name AND ittd2.tax_type = ittd.tax_type
+						), 0)
+						* IFNULL((
+							SELECT pt.base_tax_amount
+							FROM `tabPurchase Taxes and Charges` pt
+							WHERE pt.parent = p.name AND pt.account_head = ittd.tax_type
+							LIMIT 1
+						), pi.base_net_amount * ittd.tax_rate / 100),
+					0) AS amount,
 					pi.base_net_amount AS taxless_total
 				FROM
 					`tabPurchase Invoice` AS p
@@ -251,11 +289,13 @@ def get_data(filters=None):
 				WHERE
 					p.docstatus = 1
 					AND pi.item_tax_template IS NOT NULL AND pi.item_tax_template != ''
-					AND ittd.tax_type IN ({placeholders})
+					AND ittd.tax_type IN ({escaped_accounts})
 					{date_conditions}
 
 				UNION ALL
 
+				-- Items with no item_tax_template on invoices where NO other item has a box_5 template:
+				-- use proportional share of invoice-level tax
 				SELECT
 					pt.account_head AS gst_code,
 					(pi.base_net_amount / NULLIF(p.base_net_total, 0)) * pt.base_tax_amount AS amount,
@@ -267,15 +307,240 @@ def get_data(filters=None):
 				WHERE
 					p.docstatus = 1
 					AND (pi.item_tax_template IS NULL OR pi.item_tax_template = '')
+					AND NOT EXISTS (
+						SELECT 1 FROM `tabPurchase Invoice Item` pi2
+						JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
+						WHERE pi2.parent = p.name
+						AND ittd2.tax_type IN ({escaped_accounts})
+					)
 					AND pt.parenttype = 'Purchase Invoice'
-					AND pt.account_head IN ({placeholders})
+					AND pt.account_head IN ({escaped_accounts})
 					{date_conditions}
 
-				ORDER BY gst_code
+				UNION ALL
+
+				-- Items with no item_tax_template on mixed invoices (other items have box_5 templates):
+				-- show with zero tax under the zero-tax box_5 invoice-level account
+				SELECT
+					pt.account_head AS gst_code,
+					0 AS amount,
+					pi.base_net_amount AS taxless_total
+				FROM
+					`tabPurchase Invoice` AS p
+					JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
+					JOIN `tabPurchase Taxes and Charges` AS pt ON pt.parent = p.name
+				WHERE
+					p.docstatus = 1
+					AND (pi.item_tax_template IS NULL OR pi.item_tax_template = '')
+					AND EXISTS (
+						SELECT 1 FROM `tabPurchase Invoice Item` pi2
+						JOIN `tabItem Tax Template Detail` ittd2 ON ittd2.parent = pi2.item_tax_template
+						WHERE pi2.parent = p.name
+						AND ittd2.tax_type IN ({escaped_accounts})
+					)
+					AND pt.parenttype = 'Purchase Invoice'
+					AND pt.base_tax_amount = 0
+					AND pt.account_head IN ({escaped_accounts})
+					AND NOT EXISTS (
+						SELECT 1 FROM `tabItem Tax Template Detail` ittd3
+						WHERE ittd3.tax_type = pt.account_head
+						AND ittd3.tax_rate > 0
+					)
+					{date_conditions}
+
+				UNION ALL
+
+				-- Items whose item_tax_template has no matching box_5 account: show with zero tax
+				SELECT
+					pt.account_head AS gst_code,
+					0 AS amount,
+					pi.base_net_amount AS taxless_total
+				FROM
+					`tabPurchase Invoice` AS p
+					JOIN `tabPurchase Invoice Item` AS pi ON pi.parent = p.name
+					JOIN `tabPurchase Taxes and Charges` AS pt ON pt.parent = p.name
+				WHERE
+					p.docstatus = 1
+					AND pi.item_tax_template IS NOT NULL AND pi.item_tax_template != ''
+					AND NOT EXISTS (
+						SELECT 1 FROM `tabItem Tax Template Detail` ittd2
+						WHERE ittd2.parent = pi.item_tax_template
+						AND ittd2.tax_type IN ({escaped_accounts})
+					)
+					AND pt.parenttype = 'Purchase Invoice'
+					AND pt.base_tax_amount = 0
+					AND pt.account_head IN ({escaped_accounts})
+					{date_conditions}
 				""",
-				list(box_5_accounts) + date_params + list(box_5_accounts) + date_params,
+				date_params,
 				as_dict=True,
 			)
+
+		landed_cost_accounts = [
+			acc for acc in [
+				sgst_details[0].get("landed_cost_gst_account"),
+				sgst_details[0].get("landed_cost_gst_account_1"),
+				sgst_details[0].get("landed_cost_gst_account_2"),
+				sgst_details[0].get("landed_cost_gst_account_3"),
+			]
+			if acc
+		]
+		expense_claim_accounts = [
+			acc for acc in [
+				sgst_details[0].get("expense_claim_gst_account"),
+				sgst_details[0].get("expense_claim_gst_account_1"),
+				sgst_details[0].get("expense_claim_gst_account_2"),
+				sgst_details[0].get("expense_claim_gst_account_3"),
+			]
+			if acc
+		]
+		advance_accounts = [
+			acc for acc in [
+				sgst_details[0].get("advance_gst_account"),
+				sgst_details[0].get("advance_gst_account_1"),
+				sgst_details[0].get("advance_gst_account_2"),
+				sgst_details[0].get("advance_gst_account_3"),
+			]
+			if acc
+		]
+		journal_entry_accounts = [
+			acc for acc in [
+				sgst_details[0].get("journal_entry_gst_account"),
+				sgst_details[0].get("journal_entry_gst_account_1"),
+				sgst_details[0].get("journal_entry_gst_account_2"),
+				sgst_details[0].get("journal_entry_gst_account_3"),
+			]
+			if acc
+		]
+
+		if landed_cost_accounts:
+			lc_conditions = ""
+			lc_params = {"accounts": tuple(landed_cost_accounts)}
+			if filters.company:
+				lc_conditions += " AND lcv.company = %(company)s"
+				lc_params["company"] = filters.company
+			if from_date:
+				lc_conditions += " AND lcv.posting_date >= %(from_date)s"
+				lc_params["from_date"] = from_date
+			if to_date:
+				lc_conditions += " AND lcv.posting_date <= %(to_date)s"
+				lc_params["to_date"] = to_date
+
+			landed_cost_data = frappe.db.sql(
+				f"""
+				SELECT
+					lct.expense_account AS gst_code,
+					lct.base_amount AS amount,
+					0 AS taxless_total
+				FROM
+					`tabLanded Cost Voucher` AS lcv
+					JOIN `tabLanded Cost Taxes and Charges` AS lct ON lct.parent = lcv.name
+				WHERE
+					lcv.docstatus = 1
+					AND lct.expense_account IN %(accounts)s
+					{lc_conditions}
+				""",
+				lc_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + landed_cost_data
+
+		if expense_claim_accounts:
+			ec_conditions = ""
+			ec_params = {"accounts": tuple(expense_claim_accounts)}
+			if filters.company:
+				ec_conditions += " AND ec.company = %(company)s"
+				ec_params["company"] = filters.company
+			if from_date:
+				ec_conditions += " AND ec.posting_date >= %(from_date)s"
+				ec_params["from_date"] = from_date
+			if to_date:
+				ec_conditions += " AND ec.posting_date <= %(to_date)s"
+				ec_params["to_date"] = to_date
+
+			expense_claim_data = frappe.db.sql(
+				f"""
+				SELECT
+					etc.account_head AS gst_code,
+					etc.tax_amount AS amount,
+					ec.total_claimed_amount AS taxless_total
+				FROM
+					`tabExpense Claim` AS ec
+					JOIN `tabExpense Taxes and Charges` AS etc ON etc.parent = ec.name
+				WHERE
+					ec.docstatus = 1
+					AND etc.account_head IN %(accounts)s
+					{ec_conditions}
+				""",
+				ec_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + expense_claim_data
+
+		if advance_accounts:
+			adv_conditions = ""
+			adv_params = {"accounts": tuple(advance_accounts)}
+			if filters.company:
+				adv_conditions += " AND pe.company = %(company)s"
+				adv_params["company"] = filters.company
+			if from_date:
+				adv_conditions += " AND pe.posting_date >= %(from_date)s"
+				adv_params["from_date"] = from_date
+			if to_date:
+				adv_conditions += " AND pe.posting_date <= %(to_date)s"
+				adv_params["to_date"] = to_date
+
+			advance_data = frappe.db.sql(
+				f"""
+				SELECT
+					atc.account_head AS gst_code,
+					atc.base_tax_amount AS amount,
+					(atc.base_total - atc.base_tax_amount) AS taxless_total
+				FROM
+					`tabPayment Entry` AS pe
+					JOIN `tabAdvance Taxes and Charges` AS atc ON atc.parent = pe.name
+				WHERE
+					pe.docstatus = 1
+					AND atc.account_head IN %(accounts)s
+					{adv_conditions}
+				""",
+				adv_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + advance_data
+
+		if journal_entry_accounts:
+			je_gst_conditions = ""
+			je_gst_params = {"accounts": tuple(journal_entry_accounts)}
+			if filters.company:
+				je_gst_conditions += " AND je.company = %(company)s"
+				je_gst_params["company"] = filters.company
+			if from_date:
+				je_gst_conditions += " AND je.posting_date >= %(from_date)s"
+				je_gst_params["from_date"] = from_date
+			if to_date:
+				je_gst_conditions += " AND je.posting_date <= %(to_date)s"
+				je_gst_params["to_date"] = to_date
+
+			je_gst_data = frappe.db.sql(
+				f"""
+				SELECT
+					jea.account AS gst_code,
+					IFNULL(jea.debit_in_account_currency, 0) - IFNULL(jea.credit_in_account_currency, 0) AS amount,
+					0 AS taxless_total
+				FROM
+					`tabJournal Entry` AS je
+					JOIN `tabJournal Entry Account` AS jea ON jea.parent = je.name
+				WHERE
+					je.docstatus = 1
+					AND jea.account IN %(accounts)s
+					{je_gst_conditions}
+				""",
+				je_gst_params,
+				as_dict=True,
+			)
+			p_sql_data = p_sql_data + je_gst_data
+
 		box_5_balance_total = 0
 		box_7_balance_total = 0
 		box_5 = [
@@ -293,12 +558,13 @@ def get_data(filters=None):
 			cp_sqldata = p_sql_data.copy()
 			for data in cp_sqldata:
 				# if data.get('gst_code') in [sgst_details[0].get('box_1'), sgst_details[0].get('box_2'), sgst_details[0].get('box_3')]:
+				data["amount"] = flt(data["amount"], 2)
 				purchase_invoice_with_tax_total = purchase_invoice_with_tax_total + data["amount"]
 				box_7_balance_total = box_7_balance_total + data.get("amount")
 				data["balance"] = box_7_balance_total
 				purchase_invoice_with_tax.append(data)
 				cp_dict = data.copy()
-				cp_dict["amount"] = cp_dict["taxless_total"]
+				cp_dict["amount"] = flt(cp_dict["taxless_total"], 2)
 				box_5_balance_total = box_5_balance_total + cp_dict.get("amount")
 				cp_dict["balance"] = box_5_balance_total
 				p_total = p_total + cp_dict.get("amount")
@@ -351,9 +617,12 @@ def get_account_data(filters, sgst_details):
 	if sgst_details and not sgst_details[0].get("other_income"):
 		return 0
 
+	from_fiscal_year = get_fiscal_year(filters.from_date, company=filters.company)[0]
+	to_fiscal_year = get_fiscal_year(filters.to_date, company=filters.company)[0]
+
 	period_list = get_period_list(
-		frappe.defaults.get_user_default("fiscal_year"),
-		frappe.defaults.get_user_default("fiscal_year"),
+		from_fiscal_year,
+		to_fiscal_year,
 		filters.from_date,
 		filters.to_date,
 		"Date Range",
@@ -363,8 +632,8 @@ def get_account_data(filters, sgst_details):
 
 	period_list_filter = frappe._dict(
 		{
-			"from_fiscal_year": frappe.defaults.get_user_default("fiscal_year"),
-			"to_fiscal_year": frappe.defaults.get_user_default("fiscal_year"),
+			"from_fiscal_year": from_fiscal_year,
+			"to_fiscal_year": to_fiscal_year,
 			"period_start_date": filters.from_date,
 			"period_end_date": filters.to_date,
 			"periodicity": "Yearly",
