@@ -252,7 +252,11 @@ def get_data(filters=None):
 
 		if py_data:
 			box_3.extend(py_data)
-		box_3_total = box_3_total + total_jv + total_py
+		box_3_total = flt(box_3_total + total_jv + total_py, 2)
+		box_1_total = flt(box_1_total, 2)
+		box_2_total = flt(box_2_total, 2)
+		total = flt(total, 2)
+		sales_invoice_with_tax_total = flt(sales_invoice_with_tax_total, 2)
 		box_1_total_line = [
 			{
 				"transaction_type": "<b>Box 1 Total value of standard-rated supplies (excluding GST)</b>",
@@ -678,7 +682,8 @@ def get_data(filters=None):
 				cp_dict["balance"] = box_5_balance_total
 				purchase_row_without_gst.append(cp_dict)
 				p_total = p_total + cp_dict.get("amount")
-			box_5[0]["amount"] = p_total
+			box_5[0]["amount"] = flt(p_total, 2)
+			purchase_invoice_with_tax_total = flt(purchase_invoice_with_tax_total, 2)
 			out_data = out_data + purchase_row_without_gst + box_5
 		if sales_invoice_with_tax:
 			out_data.append(
@@ -716,7 +721,7 @@ def get_data(filters=None):
 				}
 			)
 		box_8 = []
-		if purchase_invoice_with_tax_total and sales_invoice_with_tax_total:
+		if purchase_invoice_with_tax or sales_invoice_with_tax:
 			if sales_invoice_with_tax_total > purchase_invoice_with_tax_total:
 				box_8 = [
 					{

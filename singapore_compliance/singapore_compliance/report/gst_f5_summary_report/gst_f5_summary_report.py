@@ -207,6 +207,9 @@ def get_data(filters=None):
 				elif data.get("gst_code") == sgst_details[0].get("box_3"):
 					total = total + cp_dict.get("amount")
 					box_3_total = box_3_total + cp_dict.get("amount")
+		box_1_total = flt(box_1_total, 2)
+		box_2_total = flt(box_2_total, 2)
+		sales_invoice_with_tax_total = flt(sales_invoice_with_tax_total, 2)
 		box_1_total_line = [
 			{
 				"transaction_type": "Box 1 Total value of standard-rated supplies (excluding GST)",
@@ -568,7 +571,8 @@ def get_data(filters=None):
 				box_5_balance_total = box_5_balance_total + cp_dict.get("amount")
 				cp_dict["balance"] = box_5_balance_total
 				p_total = p_total + cp_dict.get("amount")
-			box_5[0]["amount"] = p_total
+			box_5[0]["amount"] = flt(p_total, 2)
+			purchase_invoice_with_tax_total = flt(purchase_invoice_with_tax_total, 2)
 		out_data = out_data + box_5
 		box_6 = [{"transaction_type": "Total for Box 6 Output tax due", "heading": 1, "amount": 0}]
 		if sales_invoice_with_tax:
@@ -582,7 +586,7 @@ def get_data(filters=None):
 			# out_data = out_data + [{'transaction_type':'Total for Box 7 Input tax and refunds claimed', 'heading':1, 'amount':purchase_invoice_with_tax_total}]
 		out_data = out_data + box_6 + box_7
 		box_8 = [{"transaction_type": "Box 8 Tax", "heading": 1, "amount": 0}]
-		if purchase_invoice_with_tax_total and sales_invoice_with_tax_total:
+		if purchase_invoice_with_tax or sales_invoice_with_tax:
 			if sales_invoice_with_tax_total > purchase_invoice_with_tax_total:
 				box_8[0]["transaction_type"] = "Box 8 Tax To Be Paid"
 				box_8[0]["amount"] = sales_invoice_with_tax_total - purchase_invoice_with_tax_total
