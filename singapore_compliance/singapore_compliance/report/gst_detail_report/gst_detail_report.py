@@ -32,10 +32,22 @@ def get_columns(filters=None):
 	return columns
 
 
+def sort_rows(rows, order_by_date="", order_by_supplier=""):
+	# Supplier is the tie-breaker within a date, so sort by it first (stable sort),
+	# then sort by date as the primary key. Blank means leave that key unsorted.
+	if order_by_supplier:
+		rows = sorted(rows, key=lambda d: (d.get("party_name") or ""), reverse=order_by_supplier == "Descending")
+	if order_by_date:
+		rows = sorted(rows, key=lambda d: d.get("date"), reverse=order_by_date == "Descending")
+	return rows
+
+
 def get_data(filters=None):
 	out_data = []
 	from_date = filters.get("from_date")
 	to_date = filters.get("to_date")
+	order_by_date = filters.get("order_by_date") or ""
+	order_by_supplier = filters.get("order_by_supplier") or ""
 	sgst_details = frappe.db.get_all(
 		"SGST Detail",
 		{"parent": "Singapore GST Settings", "company": filters.company},
@@ -212,7 +224,7 @@ def get_data(filters=None):
 		box_6_balance_total = 0
 		total = 0
 		if sql_data:
-			cp_sqldata = sql_data.copy()
+			cp_sqldata = sort_rows(sql_data, order_by_date, order_by_supplier)
 			for data in cp_sqldata:
 				if data.get("gst_code") in [
 					sgst_details[0].get("box_1"),
@@ -667,7 +679,7 @@ def get_data(filters=None):
 				{"transaction_type": "Box 5 Total value of taxable purchases (excluding GST)", "heading": 1}
 			)
 
-			cp_sqldata = sorted(p_sql_data, key=lambda d: (d.get("date"), (d.get("party_name") or "")))
+			cp_sqldata = sort_rows(p_sql_data, order_by_date, order_by_supplier)
 			for data in cp_sqldata:
 				# if data.get('gst_code') in [sgst_details[0].get('box_1'), sgst_details[0].get('box_2'), sgst_details[0].get('box_3')]:
 				data["amount"] = flt(data["amount"], 2)

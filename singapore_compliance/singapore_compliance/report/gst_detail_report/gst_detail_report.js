@@ -26,5 +26,21 @@ frappe.query_reports["GST Detail Report"] = {
 			width: 100,
 			default: frappe.datetime.month_end(),
 		},
+		{
+			fieldname: "order_by_date",
+			label: __("Order By Date"),
+			fieldtype: "Select",
+			options: "\nAscending\nDescending",
+			default: "",
+			width: 100,
+		},
+		{
+			fieldname: "order_by_supplier",
+			label: __("Order By Supplier"),
+			fieldtype: "Select",
+			options: "\nAscending\nDescending",
+			default: "",
+			width: 100,
+		},
 	],
 };
